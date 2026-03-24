@@ -59,14 +59,23 @@ function getSelectionText(): string {
 }
 
 // 调用AI API
-async function callAI(promptType: 'optimize' | 'todo') {
+async function callAI(promptType: 'optimize' | 'todo' | 'prompt') {
   isAILoading.value = true
   document.body.style.cursor = 'wait'
 
   const text = getSelectionText()
-  const prompt = promptType === 'optimize'
-    ? settingStore.settings.aiOptimizePrompt
-    : settingStore.settings.aiTodoPrompt
+  let prompt: string
+  switch (promptType) {
+    case 'optimize':
+      prompt = settingStore.settings.aiOptimizePrompt
+      break
+    case 'todo':
+      prompt = settingStore.settings.aiTodoPrompt
+      break
+    case 'prompt':
+      prompt = settingStore.settings.aiPromptPrompt
+      break
+  }
 
   try {
     const response = await fetch(`${settingStore.settings.aiUrl}`, {
@@ -122,7 +131,7 @@ function handleContextMenu(e: MouseEvent) {
 
   // 计算菜单位置
   const menuWidth = 180
-  const menuHeight = 280 // 估算高度
+  const menuHeight = 340 // 估算高度（3个菜单项）
   let left = e.clientX
   let top = e.clientY
 
@@ -155,7 +164,7 @@ function handleKeyDown(e: KeyboardEvent) {
 }
 
 
-function handleAI(type: 'optimize' | 'todo') {
+function handleAI(type: 'optimize' | 'todo' | 'prompt') {
   hideContextMenu()
   callAI(type)
 }
@@ -278,6 +287,10 @@ defineExpose({getVditor: () => vditorInstance})
         <div class="context-menu-item" @click="handleAI('todo')">
           <span class="context-menu-icon">☐</span>
           <span>提取任务</span>
+        </div>
+        <div class="context-menu-item" @click="handleAI('prompt')">
+          <span class="context-menu-icon">💡</span>
+          <span>提示词优化</span>
         </div>
 <!--        <div class="context-menu-divider"></div>-->
       </template>

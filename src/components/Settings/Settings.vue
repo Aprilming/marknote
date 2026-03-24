@@ -258,6 +258,19 @@ function goBack() {
             rows="2"
           ></textarea>
         </div>
+
+        <div class="setting-item">
+          <div class="setting-label">
+            <span class="setting-name">提示词小助手</span>
+          </div>
+          <textarea
+            :value="settingStore.settings.aiPromptPrompt"
+            @change="settingStore.updateSettings('aiPromptPrompt', ($event.target as HTMLTextAreaElement).value)"
+            class="text-input textarea-input"
+            :placeholder="settingStore.settings.aiPromptPrompt"
+            rows="2"
+          ></textarea>
+        </div>
       </section>
 
       <section class="settings-section">
