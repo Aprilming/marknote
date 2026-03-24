@@ -130,3 +130,30 @@ macOS Gatekeeper blocks unsigned apps. Run the following to remove the quarantin
 ```bash
 sudo xattr -r -d com.apple.quarantine /Applications/MarkNote.app/
 ```
+
+---
+
+## License
+
+**Copyright © 2025-2026 MarkNote**
+
+This software is for personal learning, research, and private use only. Commercial use of any kind is strictly prohibited.
+
+### Permitted
+
+- ✅ Personal learning, research, and private use
+- ✅ Modifying source code for personal use
+- ✅ Sharing with others for personal use (with original copyright preserved)
+
+### Prohibited
+
+- ❌ Any commercial use
+- ❌ Integration into commercial products or services
+- ❌ Selling, transferring, or licensing this software
+- ❌ Removing or tampering with copyright information
+
+### Disclaimer
+
+This software is provided "AS IS" without any warranties. Users assume all risks associated with using this software.
+
+For questions, please contact the author.
