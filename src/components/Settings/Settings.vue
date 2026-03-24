@@ -52,6 +52,7 @@ const shortcutLabels: Record<keyof ShortcutSettings, string> = {
   nextNote: '下一页',
   newNote: '新增页面',
   deleteNote: '删除页面',
+  pin: '置顶窗口',
 }
 
 // 快捷键说明
@@ -61,6 +62,7 @@ const shortcutDescs: Record<keyof ShortcutSettings, string> = {
   nextNote: '应用内快捷键，切换到下一条笔记',
   newNote: '应用内快捷键，新建一条笔记',
   deleteNote: '应用内快捷键，删除当前笔记',
+  pin: '应用内快捷键，切换窗口置顶状态',
 }
 
 // 开始录制快捷键
@@ -201,7 +203,7 @@ function goBack() {
             :value="settingStore.settings.aiUrl"
             @change="settingStore.updateSettings('aiUrl', ($event.target as HTMLInputElement).value)"
             class="text-input"
-            placeholder="https://api.openai.com/v1"
+            placeholder="https://api.deepseek.com/chat/completions"
           />
         </div>
 
@@ -227,7 +229,7 @@ function goBack() {
             :value="settingStore.settings.aiModel"
             @change="settingStore.updateSettings('aiModel', ($event.target as HTMLInputElement).value)"
             class="text-input"
-            placeholder="gpt-4"
+            placeholder="deepseek-chat"
           />
         </div>
 
@@ -239,7 +241,7 @@ function goBack() {
             :value="settingStore.settings.aiOptimizePrompt"
             @change="settingStore.updateSettings('aiOptimizePrompt', ($event.target as HTMLTextAreaElement).value)"
             class="text-input textarea-input"
-            placeholder="请优化以下文本，使其更加清晰、简洁："
+            :placeholder="settingStore.settings.aiOptimizePrompt"
             rows="2"
           ></textarea>
         </div>
@@ -252,7 +254,7 @@ function goBack() {
             :value="settingStore.settings.aiTodoPrompt"
             @change="settingStore.updateSettings('aiTodoPrompt', ($event.target as HTMLTextAreaElement).value)"
             class="text-input textarea-input"
-            placeholder="请从以下文本中提取待办事项，以任务列表形式返回："
+            :placeholder="settingStore.settings.aiTodoPrompt"
             rows="2"
           ></textarea>
         </div>

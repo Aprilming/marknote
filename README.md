@@ -7,6 +7,25 @@
 - 所见即所得
 - 如无必要，勿增实体
 
+## 使用方法
+
+![xw_20260324182911.gif](resources/xw_20260324182911.gif)
+1. 触摸板左右滑动 - 切换笔记
+2. 鼠标横轴滚动 - 切换笔记
+3. Cmd + [ - 上一个笔记
+4. Cmd + ] - 下一个笔记
+5. Cmd + F - 搜索笔记
+6. Cmd + N - 新建笔记
+7. Cmd + Back Space - 删除笔记
+8. Cmd + P - Pin置顶
+
+## 截图
+![img.png](resources/img1.png)
+
+![img.png](resources/img2.png)
+
+![img3.png](resources/img3.png)
+
 ## 技术栈
 
 - **框架**: Tauri 2.x + Vue 3.x + TypeScript
