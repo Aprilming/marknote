@@ -235,7 +235,7 @@ function goBack() {
 
         <div class="setting-item">
           <div class="setting-label">
-            <span class="setting-name">优化提示词</span>
+            <span class="setting-name">优化小助手</span>
           </div>
           <textarea
             :value="settingStore.settings.aiOptimizePrompt"
@@ -248,7 +248,7 @@ function goBack() {
 
         <div class="setting-item">
           <div class="setting-label">
-            <span class="setting-name">待办提示词</span>
+            <span class="setting-name">待办小助手</span>
           </div>
           <textarea
             :value="settingStore.settings.aiTodoPrompt"
