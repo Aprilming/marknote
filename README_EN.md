@@ -70,10 +70,10 @@ MarkNote is a native macOS floating note app with WYSIWYG Markdown editing, AI-a
 - ✅ AI writing assistant (right-click menu)
 - ✅ iCloud directory storage
 - ✅ Import / Export
+- ✅ Dark / Light theme toggle
 
 **Planned**
 
-- ⏳ Dark / Light theme toggle
 - ⏳ Code block style aligned with Typora
 
 ## Data Storage
