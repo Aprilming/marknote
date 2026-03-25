@@ -172,7 +172,30 @@ function handleAI(type: 'optimize' | 'todo' | 'prompt') {
 }
 
 onMounted(() => {
-  // 在capture阶段监听，确保在Vditor之前处理
+  document.addEventListener('keydown', (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === 'a') {
+      const vditorReset = editorContainer.value?.querySelector('.vditor-reset')
+      if (!vditorReset) return
+
+      const active = document.activeElement
+      const hasFocus = vditorReset === active || vditorReset.contains(active)
+
+      if (hasFocus) {
+        // 焦点在编辑器内：拦截，自己全选
+        e.preventDefault()
+        const sel = window.getSelection()
+        const range = document.createRange()
+        range.selectNodeContents(vditorReset)
+        sel.removeAllRanges()
+        sel.addRange(range)
+      } else {
+        if (active?.tagName === 'INPUT' || active?.tagName === 'TEXTAREA') return
+        // 焦点不在编辑器：阻止全选整个页面
+        e.preventDefault()
+      }
+    }
+  }, true)
+
   document.addEventListener('contextmenu', handleContextMenu, true)
   document.addEventListener('click', hideContextMenu)
   document.addEventListener('keydown', handleKeyDown)
@@ -282,17 +305,17 @@ defineExpose({getVditor: () => vditorInstance})
       @click.stop
     >
       <template v-if="hasAIConfig">
-        <div class="context-menu-item" @click="handleAI('optimize')">
+        <div v-if="settingStore.settings.aiOptimizePrompt" class="context-menu-item" @click="handleAI('optimize')">
           <span class="context-menu-icon">✨</span>
-          <span>优化显示</span>
+          <span>一号助手</span>
         </div>
-        <div class="context-menu-item" @click="handleAI('todo')">
+        <div v-if="settingStore.settings.aiTodoPrompt" class="context-menu-item" @click="handleAI('todo')">
           <span class="context-menu-icon">☐</span>
-          <span>提取任务</span>
+          <span>二号助手</span>
         </div>
-        <div class="context-menu-item" @click="handleAI('prompt')">
+        <div v-if="settingStore.settings.aiPromptPrompt" class="context-menu-item" @click="handleAI('prompt')">
           <span class="context-menu-icon">💡</span>
-          <span>提示词优化</span>
+          <span>三号助手</span>
         </div>
 <!--        <div class="context-menu-divider"></div>-->
       </template>

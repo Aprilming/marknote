@@ -160,7 +160,7 @@ function goBack() {
 
     <div class="settings-content">
       <section class="settings-section">
-        <h2 class="section-title">窗口设置</h2>
+        <h2 class="section-title">通用设置</h2>
 
         <div class="setting-item">
           <div class="setting-label">
@@ -201,9 +201,9 @@ function goBack() {
           </div>
           <input
             type="range"
-            min="0.3"
+            min="0.6"
             max="1"
-            step="0.05"
+            step="0.01"
             :value="settingStore.settings.windowAlpha"
             @input="onAlphaChange"
             class="alpha-slider"
@@ -268,7 +268,7 @@ function goBack() {
 
         <div class="setting-item">
           <div class="setting-label">
-            <span class="setting-name">优化小助手</span>
+            <span class="setting-name">一号助手</span>
           </div>
           <textarea
             :value="settingStore.settings.aiOptimizePrompt"
@@ -281,7 +281,7 @@ function goBack() {
 
         <div class="setting-item">
           <div class="setting-label">
-            <span class="setting-name">待办小助手</span>
+            <span class="setting-name">二号助手</span>
           </div>
           <textarea
             :value="settingStore.settings.aiTodoPrompt"
@@ -294,7 +294,7 @@ function goBack() {
 
         <div class="setting-item">
           <div class="setting-label">
-            <span class="setting-name">提示词小助手</span>
+            <span class="setting-name">三号助手</span>
           </div>
           <textarea
             :value="settingStore.settings.aiPromptPrompt"
@@ -458,6 +458,11 @@ function goBack() {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
+  margin-bottom: 8px;
+}
+
+.setting-item:last-child {
+  margin-bottom: 0;
 }
 
 .setting-label {
@@ -689,8 +694,11 @@ function goBack() {
 .textarea-input {
   resize: vertical;
   min-height: 60px;
+  height: auto;
   font-family: inherit;
   line-height: 1.5;
+  overflow: auto;
+  field-sizing: content;
 }
 
 /* 版本信息样式 */
