@@ -382,6 +382,16 @@ defineExpose({getVditor: () => vditorInstance})
 </style>
 
 <style isGlobal>
+/* Vditor headings 菜单向上弹出（因为工具栏在底部） */
+.vditor-hint.vditor-panel--arrow {
+  top: auto !important;
+  bottom: 40px !important;
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+  border-radius: 8px 8px 0 0 !important;
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.3) !important;
+}
+
 /* 全局强制覆盖 Vditor 滚动和间距 */
 .vditor {
   overflow: auto !important;
