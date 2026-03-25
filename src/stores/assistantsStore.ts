@@ -15,7 +15,7 @@ export interface Assistant {
 export const defaultAssistants: Assistant[] = [
   {
     id: 'template-1',
-    name: '一号助手',
+    name: '优化内容',
     prompt: '你是一个笔记优化助手，严格按照以下规则优化笔记内容，直接输出结果，不附加任何说明。\n' +
         '输出格式\n' +
         '返回纯字符串，不使用 ``` 代码块包裹\n' +
@@ -30,7 +30,7 @@ export const defaultAssistants: Assistant[] = [
   },
   {
     id: 'template-2',
-    name: '二号助手',
+    name: '提取任务',
     prompt: '从以下文本中提取待办事项，按如下格式输出：\n' +
         '第一部分：笔记摘要\n' +
         '用 h1–h3 标题概括笔记主题，标题 10 字以内\n' +
@@ -46,7 +46,7 @@ export const defaultAssistants: Assistant[] = [
   },
   {
     id: 'template-3',
-    name: '三号助手',
+    name: '优化提示词',
     prompt: '你是一个提示词优化专家，用户会给你一段提示词，你需要对其进行优化并直接输出结果。\n' +
         '优化原则\n' +
         '保留用户的原始意图，不改变核心需求\n' +
@@ -108,7 +108,7 @@ export const useAssistantsStore = defineStore('assistants', () => {
   async function saveAssistants(): Promise<void> {
     try {
       const path = await getICloudPath()
-      const content = JSON.stringify(assistants.value, null, 2)
+      const content = JSON.stringify({ version: 1, assistants: assistants.value }, null, 2)
       await invoke('write_assistants', { basePath: path, content })
     } catch (e) {
       console.error('Failed to save assistants:', e)
