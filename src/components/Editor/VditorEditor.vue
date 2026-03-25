@@ -99,7 +99,7 @@ async function callAI(promptType: 'optimize' | 'todo' | 'prompt') {
       body: JSON.stringify({
         model: settingStore.settings.aiModel,
         messages: [
-          { role: 'system', content: '你是一个文档助手，严格遵循一下规则：简短直接；如无必要，勿增实体' },
+          { role: 'system', content: '你是一个笔记助手, 协助用户完成文字处理，严格遵守用户的规则！' },
           { role: 'user', content: `${prompt}\n\n${text}` }
         ],
         temperature: 0.7,
