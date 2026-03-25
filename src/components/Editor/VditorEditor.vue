@@ -3,6 +3,8 @@ import {ref, onMounted, onUnmounted, watch, computed} from 'vue'
 import Vditor from 'vditor'
 import 'vditor/dist/index.css'
 import 'highlight.js/styles/github.css'
+// 导入 i18n 文件以填充 window.VditorI18n
+import 'vditor/dist/js/i18n/zh_CN'
 import { useSettingStore } from '@/stores/settingStore'
 
 const props = defineProps<{
@@ -184,6 +186,7 @@ onMounted(() => {
         // 焦点在编辑器内：拦截，自己全选
         e.preventDefault()
         const sel = window.getSelection()
+        if (!sel) return
         const range = document.createRange()
         range.selectNodeContents(vditorReset)
         sel.removeAllRanges()
@@ -202,6 +205,7 @@ onMounted(() => {
 
   if (editorContainer.value) {
     vditorInstance = new Vditor(editorContainer.value, {
+      lang: 'zh_CN',
       mode: 'wysiwyg',
       value: props.initialContent,
       input: (value: string) => {
@@ -247,6 +251,7 @@ onMounted(() => {
         })
       },
       toolbar: [
+        'headings',
         'bold',
         'italic',
         'strike',
@@ -269,7 +274,10 @@ onMounted(() => {
       cache: {enable: false},
       resize: {enable: false},
       height: '100%',
-      outline: {enable: false, position: 'left'}
+      outline: {enable: false, position: 'left'},
+      customWysiwygToolbar: () => {
+        return false
+      },
     })
   }
 })

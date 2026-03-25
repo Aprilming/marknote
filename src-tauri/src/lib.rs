@@ -186,7 +186,7 @@ async fn show_window_current_space_impl(app: &AppHandle) {
 #[tauri::command]
 async fn get_icloud_path() -> Result<String, String> {
     let home = std::env::var("HOME").map_err(|e| e.to_string())?;
-    let path = format!("{}/Library/Mobile Documents/com~apple~CloudDocs/MarkNote", home);
+    let path = format!("{}/Library/Mobile Documents/com~apple~CloudDocs/MaikNote", home);
 
     // Create directory if it doesn't exist
     fs::create_dir_all(&path).map_err(|e| e.to_string())?;

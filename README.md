@@ -112,7 +112,7 @@ MarkNote 是一款 macOS 原生悬浮便签应用，支持所见即所得 Markdo
 # 安装依赖
 npm install
 
-# 开发模式
+# 开发模式:q
 npm run tauri dev
 
 # 构建（Apple Silicon）
