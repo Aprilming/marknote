@@ -275,8 +275,9 @@ onMounted(() => {
       resize: {enable: false},
       height: '100%',
       outline: {enable: false, position: 'left'},
-      customWysiwygToolbar: () => {
-        return false
+      customWysiwygToolbar: (_, popover) => {
+        popover.innerHTML = ""  // 清空工具栏内容
+        return popover
       },
     })
   }
