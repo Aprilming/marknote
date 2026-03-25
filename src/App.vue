@@ -6,6 +6,7 @@ import { useNoteStore } from '@/stores/noteStore'
 import { useSettingStore } from '@/stores/settingStore'
 import { useShortcuts } from '@/composables/useShortcuts'
 import { useGlobalShortcut } from '@/composables/useGlobalShortcut'
+import { useTheme } from '@/composables/useTheme'
 import { useVersionCheck } from '@/composables/useVersionCheck'
 import { isNativeDialogCurrentlyOpen } from '@/stores/dialogStore'
 import TitleBar from '@/components/TitleBar/TitleBar.vue'
@@ -18,6 +19,7 @@ const noteStore = useNoteStore()
 const settingStore = useSettingStore()
 useShortcuts(openSettings)
 useGlobalShortcut()
+useTheme() // 初始化主题系统
 const { latestVersion, updateAvailable, checkForUpdates, openReleasePage } = useVersionCheck()
 
 // 当前页面：'editor' | 'settings' | 'search'

@@ -1,5 +1,6 @@
-/* CSS Variables for theming */
-:root {
+/* CSS Variables for theming - Light mode (default) */
+:root,
+[data-theme="light"] {
   --color-primary: #3b82f6;
   --color-primary-hover: #2563eb;
   --color-background: #ffffff;
@@ -32,14 +33,17 @@
 }
 
 /* Dark mode */
-@media (prefers-color-scheme: dark) {
-  :root {
-    --color-background: rgba(30, 30, 30, 0.65);
-    --color-surface: rgba(30, 41, 59, 0.5);
-    --color-text: #f1f5f9;
-    --color-text-secondary: #94a3b8;
-    --color-border: rgba(51, 65, 85, 0.4);
-  }
+[data-theme="dark"] {
+  --color-primary: #3b82f6;
+  --color-primary-hover: #60a5fa;
+  --color-background: #1a1a1a;
+  --color-surface: #252525;
+  --color-text: #f1f5f9;
+  --color-text-secondary: #94a3b8;
+  --color-border: #3a3a3a;
+  --color-danger: #ef4444;
+  --color-success: #22c55e;
+  --color-warning: #f59e0b;
 }
 
 /* Reset and base styles */
@@ -145,4 +149,137 @@ textarea {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Vditor Dark Mode Overrides */
+[data-theme="dark"] .vditor-reset {
+  color: var(--color-text) !important;
+}
+
+[data-theme="dark"] .vditor-reset h1,
+[data-theme="dark"] .vditor-reset h2,
+[data-theme="dark"] .vditor-reset h3,
+[data-theme="dark"] .vditor-reset h4,
+[data-theme="dark"] .vditor-reset h5,
+[data-theme="dark"] .vditor-reset h6 {
+  color: var(--color-text) !important;
+}
+
+[data-theme="dark"] .vditor-reset a {
+  color: var(--color-primary) !important;
+}
+
+[data-theme="dark"] .vditor-reset code {
+  background-color: var(--color-surface) !important;
+  color: var(--color-text) !important;
+}
+
+[data-theme="dark"] .vditor-reset pre {
+  background-color: var(--color-surface) !important;
+}
+
+[data-theme="dark"] .vditor-reset pre code {
+  background-color: transparent !important;
+}
+
+[data-theme="dark"] .vditor-toolbar {
+  background: var(--color-surface) !important;
+  border-top-color: var(--color-border) !important;
+}
+
+[data-theme="dark"] .vditor-toolbar__icon {
+  color: var(--color-text-secondary) !important;
+}
+
+[data-theme="dark"] .vditor-toolbar__icon:hover {
+  background: var(--color-border) !important;
+  color: var(--color-text) !important;
+}
+
+[data-theme="dark"] .vditor-ir__node--readonly {
+  background: transparent !important;
+}
+
+[data-theme="dark"] .vditor-ir {
+  background: transparent !important;
+}
+
+[data-theme="dark"] .vditor-content {
+  background: transparent !important;
+}
+
+[data-theme="dark"] .vditor-input {
+  color: var(--color-text) !important;
+}
+
+[data-theme="dark"] .vditor-input::placeholder {
+  color: var(--color-text-secondary) !important;
+}
+
+[data-theme="dark"] .vditor-panel {
+  background: var(--color-surface) !important;
+  border-color: var(--color-border) !important;
+}
+
+[data-theme="dark"] .vditor-panel input {
+  background: var(--color-background) !important;
+  color: var(--color-text) !important;
+  border-color: var(--color-border) !important;
+}
+
+[data-theme="dark"] .vditor-panel input:focus {
+  border-color: var(--color-primary) !important;
+}
+
+/* 复选框样式 */
+[data-theme="dark"] .vditor-reset ul[data-checked="true"] > li::before,
+[data-theme="dark"] .vditor-reset ul[data-checked="false"] > li::before {
+  color: var(--color-text-secondary) !important;
+}
+
+[data-theme="dark"] .vditor-reset ul > li {
+  color: var(--color-text) !important;
+}
+
+[data-theme="dark"] .vditor-reset ul > li::marker {
+  color: var(--color-text-secondary) !important;
+}
+
+[data-theme="dark"] .vditor-reset ol > li {
+  color: var(--color-text) !important;
+}
+
+[data-theme="dark"] .vditor-reset ol > li::marker {
+  color: var(--color-text-secondary) !important;
+}
+
+[data-theme="dark"] .vditor-reset blockquote {
+  border-left-color: var(--color-border) !important;
+  color: var(--color-text-secondary) !important;
+}
+
+[data-theme="dark"] .vditor-reset hr {
+  border-color: var(--color-border) !important;
+}
+
+[data-theme="dark"] .vditor-reset table td,
+[data-theme="dark"] .vditor-reset table th {
+  border-color: var(--color-border) !important;
+}
+
+[data-theme="dark"] .vditor-reset table tr {
+  background: transparent !important;
+}
+
+[data-theme="dark"] .vditor-reset table tr:nth-child(2n) {
+  background: var(--color-surface) !important;
+}
+
+/* 引用块样式 */
+[data-theme="dark"] .vditor-reset blockquote {
+  background: var(--color-surface) !important;
+  border-left: 3px solid var(--color-primary) !important;
+  padding: 8px 16px !important;
+  margin: 8px 0 !important;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0 !important;
 }

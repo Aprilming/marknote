@@ -161,6 +161,39 @@ function goBack() {
     <div class="settings-content">
       <section class="settings-section">
         <h2 class="section-title">窗口设置</h2>
+
+        <div class="setting-item">
+          <div class="setting-label">
+            <span class="setting-name">主题</span>
+          </div>
+          <div class="theme-selector">
+            <button
+              class="theme-btn"
+              :class="{ active: settingStore.settings.theme === 'light' }"
+              @click="settingStore.updateSettings('theme', 'light')"
+            >
+              <i class="i-mdi-weather-sunny"></i>
+              <span>浅色</span>
+            </button>
+            <button
+              class="theme-btn"
+              :class="{ active: settingStore.settings.theme === 'dark' }"
+              @click="settingStore.updateSettings('theme', 'dark')"
+            >
+              <i class="i-mdi-weather-night"></i>
+              <span>深色</span>
+            </button>
+            <button
+              class="theme-btn"
+              :class="{ active: settingStore.settings.theme === 'auto' }"
+              @click="settingStore.updateSettings('theme', 'auto')"
+            >
+              <i class="i-mdi-theme-light-dark"></i>
+              <span>自动</span>
+            </button>
+          </div>
+        </div>
+
         <div class="setting-item">
           <div class="setting-label">
             <span class="setting-name">透明度</span>
@@ -363,8 +396,9 @@ function goBack() {
   flex-direction: column;
   width: 100%;
   height: 100%;
-  background: transparent;
+  background: var(--color-surface);
   outline: none;
+  overflow: hidden;
 }
 
 .settings-header {
@@ -374,6 +408,7 @@ function goBack() {
   padding: 16px 24px;
   border-bottom: 1px solid var(--color-border);
   background: var(--color-surface);
+  flex-shrink: 0;
 }
 
 .back-btn {
@@ -408,6 +443,7 @@ function goBack() {
   flex: 1;
   padding: 24px;
   overflow-y: auto;
+  background: var(--color-surface);
 }
 
 .settings-section {
@@ -479,6 +515,41 @@ function goBack() {
 
 .toggle-btn.active {
   background: var(--color-primary);
+}
+
+/* Theme selector */
+.theme-selector {
+  display: flex;
+  gap: 8px;
+}
+
+.theme-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: all 0.15s;
+  font-size: 13px;
+}
+
+.theme-btn:hover {
+  border-color: var(--color-primary);
+  color: var(--color-text);
+}
+
+.theme-btn.active {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: white;
+}
+
+.theme-btn i {
+  font-size: 16px;
 }
 
 .toggle-slider {

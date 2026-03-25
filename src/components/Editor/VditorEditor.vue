@@ -358,7 +358,7 @@ defineExpose({getVditor: () => vditorInstance})
   padding: 0 !important;
   display: flex !important;
   flex-direction: column !important;
-  background: transparent !important;
+  background: var(--color-background) !important;
 }
 
 .vditor-content {
@@ -367,7 +367,7 @@ defineExpose({getVditor: () => vditorInstance})
   min-height: 0 !important;
   flex: 1 !important;
   padding: 0 !important;
-  background: transparent !important;
+  background: var(--color-background) !important;
 }
 
 .vditor-ir {
@@ -375,29 +375,30 @@ defineExpose({getVditor: () => vditorInstance})
   height: auto !important;
   min-height: 100% !important;
   padding: 0 !important;
-  background: transparent !important;
+  background: var(--color-background) !important;
 }
 
 .vditor-preview {
   overflow: auto !important;
   height: auto !important;
   padding: 0 !important;
-  background: transparent !important;
+  background: var(--color-background) !important;
 }
 
 .vditor-reset {
   overflow: visible !important;
   padding: 40px 48px !important;
   margin: 0 !important;
-  background: transparent !important;
+  background: var(--color-background) !important;
+  color: var(--color-text) !important;
 }
 
 .vditor-toolbar {
   flex-shrink: 0 !important;
   order: 2 !important;
-  border-top: 1px solid var(--border-color) !important;
+  border-top: 1px solid var(--color-border) !important;
   border-bottom: none !important;
-  background: transparent !important;
+  background: var(--color-surface) !important;
   justify-content: center !important;
 }
 
@@ -407,7 +408,7 @@ defineExpose({getVditor: () => vditorInstance})
 
 .vditor-panel {
   flex-shrink: 0 !important;
-  background: transparent !important;
+  background: var(--color-surface) !important;
 }
 
 /* 分页显示移到右上角 */
@@ -418,7 +419,7 @@ defineExpose({getVditor: () => vditorInstance})
   bottom: auto !important;
   left: auto !important;
   z-index: 10 !important;
-  background: transparent !important;
+  background: var(--color-surface) !important;
   padding: 4px 8px !important;
   border-radius: 4px !important;
 }
@@ -426,9 +427,9 @@ defineExpose({getVditor: () => vditorInstance})
 .vditor-toolbar {
   flex-shrink: 0 !important;
   order: 2 !important;
-  border-top: 1px solid var(--border-color) !important;
+  border-top: 1px solid var(--color-border) !important;
   border-bottom: none !important;
-  background: transparent !important;
+  background: var(--color-surface) !important;
   justify-content: center !important;
   display: flex !important;
   flex-wrap: wrap !important;
