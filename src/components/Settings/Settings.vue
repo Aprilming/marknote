@@ -1,16 +1,21 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { enable, disable, isEnabled } from '@tauri-apps/plugin-autostart'
+import { ElMessage } from 'element-plus'
 import { useSettingStore, type ShortcutSettings } from '@/stores/settingStore'
+import { useAssistantsStore, defaultAssistants, type Assistant } from '@/stores/assistantsStore'
 import { useVersionCheck } from '@/composables/useVersionCheck'
+import AssistantEditor from '@/components/Assistant/AssistantEditor.vue'
 
 const { currentVersion, latestVersion, isLoading: checkLoading, updateAvailable, checkError, checkForUpdates, openReleasePage, tagsUrl } = useVersionCheck()
 
 const settingStore = useSettingStore()
+const assistantsStore = useAssistantsStore()
 
-// 初始化自启动状态
+// 初始化助手数据
 onMounted(async () => {
+  await assistantsStore.loadAssistants()
   try {
     const enabled = await isEnabled()
     settingStore.updateSettings('autoLaunch', enabled)
@@ -196,6 +201,63 @@ const emit = defineEmits<{
 function goBack() {
   emit('back')
 }
+
+// ==================== AI 助手相关 ====================
+
+// AssistantEditor 弹窗状态
+const assistantEditorVisible = ref(false)
+const editingAssistant = ref<Assistant | undefined>(undefined)
+
+// 用户助手列表（排除模板助手）
+const userAssistants = computed(() => {
+  return assistantsStore.assistants.filter(a => !a.id.startsWith('template-'))
+})
+
+// 点击模板助手
+async function handleTemplateClick(template: Assistant) {
+  // 检查是否已存在相同 prompt 的用户助手
+  if (assistantsStore.hasUserPrompt(template.prompt)) {
+    ElMessage.warning('该助手已添加')
+    return
+  }
+  // 添加到用户助手列表
+  await assistantsStore.addAssistant(template.name, template.prompt)
+  ElMessage.success('添加成功')
+}
+
+// 点击添加助手
+function handleAddAssistant() {
+  editingAssistant.value = undefined
+  assistantEditorVisible.value = true
+}
+
+// 点击编辑助手
+function handleEditAssistant(assistant: Assistant) {
+  editingAssistant.value = assistant
+  assistantEditorVisible.value = true
+}
+
+// 点击删除助手
+async function handleDeleteAssistant(assistant: Assistant) {
+  await assistantsStore.deleteAssistant(assistant.id)
+}
+
+// 保存助手
+async function handleSaveAssistant(data: { name: string; prompt: string }) {
+  if (editingAssistant.value) {
+    // 编辑模式
+    await assistantsStore.updateAssistant(editingAssistant.value.id, data)
+  } else {
+    // 新建模式
+    await assistantsStore.addAssistant(data.name, data.prompt)
+  }
+}
+
+// 提示词预览（截取前50字符）
+function getPromptPreview(prompt: string): string {
+  const chars = [...prompt]
+  return chars.length > 50 ? chars.slice(0, 50).join('') + '...' : prompt
+}
 </script>
 
 <template>
@@ -317,41 +379,51 @@ function goBack() {
 
         <div class="setting-item">
           <div class="setting-label">
-            <span class="setting-name">一号助手</span>
+            <span class="setting-name">模板助手</span>
           </div>
-          <textarea
-            :value="settingStore.settings.aiOptimizePrompt"
-            @change="settingStore.updateSettings('aiOptimizePrompt', ($event.target as HTMLTextAreaElement).value)"
-            class="text-input textarea-input"
-            :placeholder="settingStore.settings.aiOptimizePrompt"
-            rows="2"
-          ></textarea>
+          <div class="template-assistants">
+            <button
+              v-for="template in defaultAssistants"
+              :key="template.id"
+              class="template-assistant-btn"
+              @click="handleTemplateClick(template)"
+            >
+              <span class="template-name">{{ template.name }}</span>
+            </button>
+          </div>
         </div>
 
         <div class="setting-item">
           <div class="setting-label">
-            <span class="setting-name">二号助手</span>
+            <span class="setting-name">我的助手</span>
           </div>
-          <textarea
-            :value="settingStore.settings.aiTodoPrompt"
-            @change="settingStore.updateSettings('aiTodoPrompt', ($event.target as HTMLTextAreaElement).value)"
-            class="text-input textarea-input"
-            :placeholder="settingStore.settings.aiTodoPrompt"
-            rows="2"
-          ></textarea>
-        </div>
-
-        <div class="setting-item">
-          <div class="setting-label">
-            <span class="setting-name">三号助手</span>
+          <div class="user-assistants">
+            <div
+              v-for="assistant in userAssistants"
+              :key="assistant.id"
+              class="assistant-card"
+            >
+              <div class="assistant-info">
+                <div class="assistant-name">
+                  <i class="i-mdi-face-agent"></i>
+                  <span>{{ assistant.name }}</span>
+                </div>
+                <div class="assistant-preview">{{ getPromptPreview(assistant.prompt) }}</div>
+              </div>
+              <div class="assistant-actions">
+                <button class="action-btn edit-btn" @click="handleEditAssistant(assistant)">
+                  <i class="i-mdi-pencil"></i>
+                </button>
+                <button class="action-btn delete-btn" @click="handleDeleteAssistant(assistant)">
+                  <i class="i-mdi-delete"></i>
+                </button>
+              </div>
+            </div>
+            <button class="add-assistant-btn" @click="handleAddAssistant">
+              <i class="i-mdi-plus"></i>
+              <span>添加助手</span>
+            </button>
           </div>
-          <textarea
-            :value="settingStore.settings.aiPromptPrompt"
-            @change="settingStore.updateSettings('aiPromptPrompt', ($event.target as HTMLTextAreaElement).value)"
-            class="text-input textarea-input"
-            :placeholder="settingStore.settings.aiPromptPrompt"
-            rows="2"
-          ></textarea>
         </div>
       </section>
 
@@ -436,6 +508,12 @@ function goBack() {
         </div>
       </section>
     </div>
+
+    <AssistantEditor
+      v-model="assistantEditorVisible"
+      :assistant="editingAssistant"
+      @save="handleSaveAssistant"
+    />
   </div>
 </template>
 
@@ -906,5 +984,151 @@ function goBack() {
 
 .update-latest .update-info {
   color: #22c55e;
+}
+
+/* AI 助手设置区域 */
+.template-assistants {
+  display: flex;
+  gap: 12px;
+}
+
+.template-assistant-btn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 16px;
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.template-assistant-btn:hover {
+  border-color: var(--color-primary);
+  background: rgba(59, 130, 246, 0.05);
+}
+
+.template-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.user-assistants {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.assistant-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  transition: all 0.15s;
+}
+
+.assistant-card:hover {
+  border-color: var(--color-primary);
+}
+
+.assistant-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.assistant-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text);
+  margin-bottom: 4px;
+}
+
+.assistant-name i {
+  font-size: 16px;
+  color: var(--color-primary);
+}
+
+.assistant-preview {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.assistant-actions {
+  display: flex;
+  gap: 4px;
+  margin-left: 12px;
+}
+
+.action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.action-btn i {
+  font-size: 16px;
+}
+
+.edit-btn {
+  color: var(--color-text-secondary);
+}
+
+.edit-btn:hover {
+  background: var(--color-border);
+  color: var(--color-primary);
+}
+
+.delete-btn {
+  color: var(--color-text-secondary);
+}
+
+.delete-btn:hover {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+}
+
+.add-assistant-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 12px;
+  background: transparent;
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text-secondary);
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.add-assistant-btn:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.add-assistant-btn i {
+  font-size: 16px;
 }
 </style>

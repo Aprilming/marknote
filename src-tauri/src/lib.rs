@@ -214,6 +214,25 @@ async fn write_metadata(base_path: String, content: String) -> Result<(), String
     fs::write(path, content).map_err(|e| e.to_string())
 }
 
+/// Read assistants.json file
+#[tauri::command]
+async fn read_assistants(base_path: String) -> Result<String, String> {
+    let path = PathBuf::from(base_path).join("assistants.json");
+
+    if !path.exists() {
+        return Ok(r#"{"version":1,"assistants":[]}"#.to_string());
+    }
+
+    fs::read_to_string(path).map_err(|e| e.to_string())
+}
+
+/// Write assistants.json file
+#[tauri::command]
+async fn write_assistants(base_path: String, content: String) -> Result<(), String> {
+    let path = PathBuf::from(base_path).join("assistants.json");
+    fs::write(path, content).map_err(|e| e.to_string())
+}
+
 /// Read a single note file
 #[tauri::command]
 async fn read_note(base_path: String, id: String) -> Result<String, String> {
@@ -326,6 +345,8 @@ pub fn run() {
             get_icloud_path,
             read_metadata,
             write_metadata,
+            read_assistants,
+            write_assistants,
             read_note,
             write_note,
             delete_note,

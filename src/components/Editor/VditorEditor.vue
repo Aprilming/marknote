@@ -6,6 +6,7 @@ import 'highlight.js/styles/github.css'
 // 导入 i18n 文件以填充 window.VditorI18n
 import 'vditor/dist/js/i18n/zh_CN'
 import { useSettingStore } from '@/stores/settingStore'
+import { useAssistantsStore } from '@/stores/assistantsStore'
 
 const props = defineProps<{
   initialContent: string
@@ -18,6 +19,7 @@ const emit = defineEmits<{
 }>()
 
 const settingStore = useSettingStore()
+const assistantsStore = useAssistantsStore()
 const editorContainer = ref<HTMLElement>()
 let vditorInstance: Vditor | null = null
 
@@ -28,6 +30,11 @@ const contextMenuRef = ref<HTMLElement>()
 const contextMenuStyle = ref<{left: string, top: string}>({left: '0px', top: '0px'})
 
 const hasAIConfig = computed(() => true) // 始终显示菜单，未配置时点击会提示
+
+// 用户助手列表（排除模板助手）
+const userAssistants = computed(() => {
+  return assistantsStore.assistants.filter(a => !a.id.startsWith('template-'))
+})
 
 const fontSizeStyle = computed(() => `${props.fontSize}px`)
 
@@ -62,7 +69,7 @@ function getSelectionText(): string {
 let aiAbortController: AbortController | null = null
 
 // 调用AI API（流式响应 + 请求取消）
-async function callAI(promptType: 'optimize' | 'todo' | 'prompt') {
+async function callAI(assistantId: string) {
   // 如果已有请求在运行，先取消
   if (aiAbortController) {
     aiAbortController.abort()
@@ -73,18 +80,16 @@ async function callAI(promptType: 'optimize' | 'todo' | 'prompt') {
   document.body.style.cursor = 'wait'
 
   const text = getSelectionText()
-  let prompt: string
-  switch (promptType) {
-    case 'optimize':
-      prompt = settingStore.settings.aiOptimizePrompt
-      break
-    case 'todo':
-      prompt = settingStore.settings.aiTodoPrompt
-      break
-    case 'prompt':
-      prompt = settingStore.settings.aiPromptPrompt
-      break
+
+  // 根据ID获取助手配置
+  const assistant = assistantsStore.getAssistantById(assistantId)
+  if (!assistant) {
+    showToast('未找到对应的 AI 助手')
+    isAILoading.value = false
+    document.body.style.cursor = ''
+    return
   }
+  const prompt = assistant.prompt
 
   aiAbortController = new AbortController()
   const signal = aiAbortController.signal
@@ -218,13 +223,13 @@ function handleKeyDown(e: KeyboardEvent) {
 }
 
 
-function handleAI(type: 'optimize' | 'todo' | 'prompt') {
+function handleAI(assistantId: string) {
   hideContextMenu()
   if (!settingStore.settings.aiUrl || !settingStore.settings.aiKey || !settingStore.settings.aiModel) {
     showToast('请先在设置中配置 AI')
     return
   }
-  callAI(type)
+  callAI(assistantId)
 }
 
 onMounted(() => {
@@ -338,6 +343,10 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  // 取消正在进行的 AI 请求
+  if (aiAbortController) {
+    aiAbortController.abort()
+  }
   document.removeEventListener('contextmenu', handleContextMenu, true)
   document.removeEventListener('click', hideContextMenu)
   document.removeEventListener('keydown', handleKeyDown)
@@ -367,20 +376,22 @@ defineExpose({getVditor: () => vditorInstance})
       :style="contextMenuStyle"
       @click.stop
     >
-      <template v-if="hasAIConfig">
-        <div v-if="settingStore.settings.aiOptimizePrompt" class="context-menu-item" @click="handleAI('optimize')">
-          <span class="context-menu-icon">✨</span>
-          <span>一号助手</span>
+      <template v-if="hasAIConfig && userAssistants.length > 0">
+        <div
+          v-for="assistant in userAssistants"
+          :key="assistant.id"
+          class="context-menu-item"
+          @click="handleAI(assistant.id)"
+        >
+          <span class="context-menu-icon">📝</span>
+          <span>{{ assistant.name }}</span>
         </div>
-        <div v-if="settingStore.settings.aiTodoPrompt" class="context-menu-item" @click="handleAI('todo')">
-          <span class="context-menu-icon">☐</span>
-          <span>二号助手</span>
+      </template>
+      <template v-else-if="hasAIConfig">
+        <div class="context-menu-item context-menu-item--disabled">
+          <span class="context-menu-icon">📝</span>
+          <span>暂无助手</span>
         </div>
-        <div v-if="settingStore.settings.aiPromptPrompt" class="context-menu-item" @click="handleAI('prompt')">
-          <span class="context-menu-icon">💡</span>
-          <span>三号助手</span>
-        </div>
-<!--        <div class="context-menu-divider"></div>-->
       </template>
     </div>
   </Teleport>
@@ -421,6 +432,15 @@ defineExpose({getVditor: () => vditorInstance})
 
 .context-menu-item:hover {
   background: rgba(255, 255, 255, 0.1);
+}
+
+.context-menu-item--disabled {
+  color: #888;
+  cursor: default;
+}
+
+.context-menu-item--disabled:hover {
+  background: transparent;
 }
 
 .context-menu-icon {
