@@ -31,6 +31,10 @@ MarkNote is a native macOS floating note app with WYSIWYG Markdown editing, AI-a
 
 ![Demo](resources/xw_20260324182911.gif)
 
+## AI Demo
+
+![AIDemo](resources/xw_20260325150145.gif)
+
 ## Screenshots
 
 | Main | Search | Settings |

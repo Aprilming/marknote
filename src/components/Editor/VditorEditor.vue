@@ -58,8 +58,17 @@ function getSelectionText(): string {
   return text || props.initialContent
 }
 
-// 调用AI API
+// AbortController 用于取消 AI 请求
+let aiAbortController: AbortController | null = null
+
+// 调用AI API（流式响应 + 请求取消）
 async function callAI(promptType: 'optimize' | 'todo' | 'prompt') {
+  // 如果已有请求在运行，先取消
+  if (aiAbortController) {
+    aiAbortController.abort()
+    aiAbortController = null
+  }
+
   isAILoading.value = true
   document.body.style.cursor = 'wait'
 
@@ -77,6 +86,9 @@ async function callAI(promptType: 'optimize' | 'todo' | 'prompt') {
       break
   }
 
+  aiAbortController = new AbortController()
+  const signal = aiAbortController.signal
+
   try {
     const response = await fetch(`${settingStore.settings.aiUrl}`, {
       method: 'POST',
@@ -87,34 +99,76 @@ async function callAI(promptType: 'optimize' | 'todo' | 'prompt') {
       body: JSON.stringify({
         model: settingStore.settings.aiModel,
         messages: [
-          { role: 'system', content: '你是一个笔记软件的文本处理助手。' },
+          { role: 'system', content: '你是一个文档助手，严格遵循一下规则：简短直接；如无必要，勿增实体' },
           { role: 'user', content: `${prompt}\n\n${text}` }
         ],
-        temperature: 0.7
-      })
+        temperature: 0.7,
+        stream: true  // 启用流式响应
+      }),
+      signal
     })
 
     if (!response.ok) {
       throw new Error(`API错误: ${response.status}`)
     }
 
-    const data = await response.json()
-    const result = data.choices?.[0]?.message?.content?.trim()
+    // 流式读取响应
+    const reader = response.body?.getReader()
+    if (!reader) {
+      throw new Error('无法读取响应流')
+    }
 
-    if (result) {
-      const trimmedResult = result.trim()
-      if (trimmedResult && vditorInstance) {
-        vditorInstance.setValue(trimmedResult)
-        emit('update', trimmedResult)
+    const decoder = new TextDecoder()
+    let fullContent = ''
+
+    // 初始空内容
+    if (vditorInstance) {
+      vditorInstance.setValue('')
+    }
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+
+      const chunk = decoder.decode(value, { stream: true })
+      // 解析 SSE 格式的数据
+      const lines = chunk.split('\n')
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          const data = line.slice(6)
+          if (data === '[DONE]') continue
+          try {
+            const parsed = JSON.parse(data)
+            const content = parsed.choices?.[0]?.delta?.content
+            if (content) {
+              fullContent += content
+              // 流式更新编辑器内容
+              if (vditorInstance) {
+                vditorInstance.setValue(fullContent)
+              }
+            }
+          } catch {
+            // 忽略解析错误（可能是不完整的 JSON）
+          }
+        }
       }
+    }
+
+    if (fullContent) {
+      emit('update', fullContent)
     }
     showToast('已完成')
   } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      // 请求被取消，不显示错误
+      return
+    }
     console.error('AI调用失败:', error)
     showToast(`AI调用失败: ${error instanceof Error ? error.message : '未知错误'}`)
   } finally {
     isAILoading.value = false
     document.body.style.cursor = ''
+    aiAbortController = null
   }
 }
 

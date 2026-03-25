@@ -31,6 +31,8 @@ MarkNote 是一款 macOS 原生悬浮便签应用，支持所见即所得 Markdo
 
 ![演示动图](resources/xw_20260324182911.gif)
 
+## AI演示
+![AI演示动图](resources/xw_20260325150145.gif)
 ## 截图
 
 | 主页面 | 搜索 | 设置 |
