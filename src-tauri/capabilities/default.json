@@ -15,6 +15,7 @@
     "core:window:allow-set-skip-taskbar",
     "core:window:allow-start-dragging",
     "core:window:allow-set-focus",
+    "core:app:allow-set-app-theme",
     "shell:allow-open",
     "opener:default",
     "http:default",

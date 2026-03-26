@@ -163,9 +163,13 @@ fn show_window_current_space_impl(app: &AppHandle) {
         unsafe {
             // 切换到 MoveToActiveSpace，显示后出现在当前 space
             let _: () = msg_send![ns_window_ptr, setCollectionBehavior: 2usize];
+            // 先设置 alpha 为 0 再隐藏，避免黑色闪烁
+            let _: () = msg_send![ns_window_ptr, setAlphaValue: 0.0 as cocoa::appkit::CGFloat];
             let _: () = msg_send![ns_window_ptr, orderOut: nil];
             let _: () = msg_send![ns_app, activateIgnoringOtherApps: true];
             let _: () = msg_send![ns_window_ptr, makeKeyAndOrderFront: nil];
+            // 立即设置为完全不透明，避免黑色背景露出
+            let _: () = msg_send![ns_window_ptr, setAlphaValue: 1.0 as cocoa::appkit::CGFloat];
             // 恢复成 CanJoinAllSpaces，避免下次还绑在这个 space
             let _: () = msg_send![ns_window_ptr, setCollectionBehavior: 1usize];
         }

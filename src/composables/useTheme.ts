@@ -1,4 +1,5 @@
 import { ref, watch, onUnmounted } from 'vue'
+import { setTheme } from '@tauri-apps/api/app'
 import { useSettingStore } from '@/stores/settingStore'
 
 // 当前生效的主题：'light' | 'dark'
@@ -33,10 +34,16 @@ function computeTheme(): 'light' | 'dark' {
 }
 
 // 应用主题到 document
-function applyTheme(theme: 'light' | 'dark') {
+async function applyTheme(theme: 'light' | 'dark') {
   currentTheme.value = theme
   // 通过 data 属性让 CSS 选择器可以区分
   document.documentElement.setAttribute('data-theme', theme)
+  // 同步设置 macOS 原生窗口外观主题，避免闪烁
+  try {
+    await setTheme(theme)
+  } catch (e) {
+    console.warn('Failed to set macOS window theme:', e)
+  }
 }
 
 // 监听系统主题变化
@@ -57,8 +64,17 @@ function handleSystemThemeChange(e: MediaQueryListEvent) {
 }
 
 // 同步初始化主题（在应用挂载前调用）
-export function initTheme() {
-  applyTheme(computeTheme())
+export async function initTheme() {
+  // 先设置 CSS 变量
+  const theme = computeTheme()
+  currentTheme.value = theme
+  document.documentElement.setAttribute('data-theme', theme)
+  // 再同步设置 macOS 原生窗口外观主题
+  try {
+    await setTheme(theme)
+  } catch (e) {
+    console.warn('Failed to set macOS window theme:', e)
+  }
 
   // 监听系统主题变化
   if (typeof window !== 'undefined' && window.matchMedia) {

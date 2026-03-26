@@ -117,7 +117,6 @@ function handleEditorUpdate(md: string) {
 
     <div class="editor-wrapper">
       <VditorEditor
-        :key="currentNote?.id"
         :initial-content="localContent"
         :font-size="settingStore.settings.fontSize"
         :font-family="settingStore.settings.fontFamily"

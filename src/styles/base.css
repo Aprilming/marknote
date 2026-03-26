@@ -151,6 +151,19 @@ textarea {
   white-space: nowrap;
 }
 
+/* Vditor 默认背景覆盖 - 防止切换笔记时闪烁 */
+.vditor {
+  background: var(--color-background) !important;
+}
+
+[data-theme="light"] .vditor {
+  background: #ffffff !important;
+}
+
+[data-theme="dark"] .vditor {
+  background: #1a1a1a !important;
+}
+
 /* Vditor Dark Mode Overrides */
 [data-theme="dark"] .vditor-reset {
   color: var(--color-text) !important;
