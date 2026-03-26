@@ -1,7 +1,7 @@
 {
   "name": "maiknote",
   "private": true,
-  "version": "0.7.0",
+  "version": "0.7.4",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "sync-version": "node scripts/sync-version.js",
-    "prebuild": "npm run sync-version"
+    "pretauri": "npm run sync-version"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",
