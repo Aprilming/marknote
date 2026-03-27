@@ -152,14 +152,16 @@ async function callAI(assistantId: string) {
     let fullContent = ''
 
     // 根据是否有选中文本决定初始内容
+    // 只有当 pendingSelectionText 存在时才清空相关内容，否则保留原内容
     if (vditorInstance) {
-      if (contentBeforeSelection) {
+      if (pendingSelectionText && contentBeforeSelection !== undefined) {
         // 有选中文本：只保留选中前的内容
         vditorInstance.setValue(contentBeforeSelection)
-      } else {
+      } else if (!pendingSelectionText) {
         // 没有选中文本：清空所有内容
         vditorInstance.setValue('')
       }
+      // 如果 pendingSelectionText 存在但 contentBeforeSelection 未定义，说明 vditorInstance 可能未就绪，保留原内容
     }
 
     while (true) {
@@ -276,16 +278,20 @@ function handleAI(assistantId: string) {
   // 先保存选中文本（避免 hideContextMenu 清空它）
   pendingSelectionText = savedSelectionText.value
 
-  // 如果有选中文本，保存选区位置信息
+  // 如果有选中文本，尝试在内容中查找并保留前后内容
   if (pendingSelectionText && vditorInstance) {
     const fullContent = vditorInstance.getValue()
     const startIndex = fullContent.indexOf(pendingSelectionText)
     if (startIndex !== -1) {
+      // 找到了选中文本，保存前后内容
       contentBeforeSelection = fullContent.slice(0, startIndex)
       contentAfterSelection = fullContent.slice(startIndex + pendingSelectionText.length)
     } else {
-      // 选中文本不在内容中，按没有选中文本处理
+      // 选中文本不在 Markdown 源码中（可能是渲染后的特殊元素）
+      // 保留原内容，不替换
       pendingSelectionText = ''
+      contentBeforeSelection = ''
+      contentAfterSelection = ''
     }
   } else {
     contentBeforeSelection = ''
