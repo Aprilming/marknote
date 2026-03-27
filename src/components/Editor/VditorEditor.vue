@@ -30,6 +30,9 @@ const contextMenuRef = ref<HTMLElement>()
 const contextMenuStyle = ref<{left: string, top: string}>({left: '0px', top: '0px'})
 const savedSelectionText = ref('') // 保存右键菜单打开时的选中文本
 let pendingSelectionText = '' // 待处理的选中文本（用于传递给AI）
+let selectionStart = 0 // 选中内容的起始位置
+let contentBeforeSelection = '' // 选中内容之前的内容
+let contentAfterSelection = '' // 选中内容之后的内容
 
 const hasAIConfig = computed(() => true) // 始终显示菜单，未配置时点击会提示
 
@@ -149,9 +152,15 @@ async function callAI(assistantId: string) {
     const decoder = new TextDecoder()
     let fullContent = ''
 
-    // 初始空内容
+    // 根据是否有选中文本决定初始内容
     if (vditorInstance) {
-      vditorInstance.setValue('')
+      if (contentBeforeSelection) {
+        // 有选中文本：只保留选中前的内容
+        vditorInstance.setValue(contentBeforeSelection)
+      } else {
+        // 没有选中文本：清空所有内容
+        vditorInstance.setValue('')
+      }
     }
 
     while (true) {
@@ -172,7 +181,13 @@ async function callAI(assistantId: string) {
               fullContent += content
               // 流式更新编辑器内容
               if (vditorInstance) {
-                vditorInstance.setValue(fullContent)
+                if (contentBeforeSelection) {
+                  // 有选中文本：拼接 选中前内容 + AI回复
+                  vditorInstance.setValue(contentBeforeSelection + fullContent)
+                } else {
+                  // 没有选中文本：直接显示AI回复
+                  vditorInstance.setValue(fullContent)
+                }
               }
             }
           } catch {
@@ -182,8 +197,16 @@ async function callAI(assistantId: string) {
       }
     }
 
+    // 生成完成后，如果有选中后的内容，需要完整拼接
+    if (contentAfterSelection && vditorInstance) {
+      const finalContent = contentBeforeSelection + fullContent + contentAfterSelection
+      vditorInstance.setValue(finalContent)
+    }
+
     if (fullContent) {
-      emit('update', fullContent)
+      // 发送完整内容（包括选中前后的内容如果有的话）
+      const finalContent = contentBeforeSelection + fullContent + contentAfterSelection
+      emit('update', finalContent)
     }
     showToast('已完成')
   } catch (error) {
@@ -198,6 +221,9 @@ async function callAI(assistantId: string) {
     document.body.style.cursor = ''
     aiAbortController = null
     pendingSelectionText = '' // 清除待处理的选中文本
+    selectionStart = 0
+    contentBeforeSelection = ''
+    contentAfterSelection = ''
   }
 }
 
@@ -251,6 +277,24 @@ function handleKeyDown(e: KeyboardEvent) {
 function handleAI(assistantId: string) {
   // 先保存选中文本（避免 hideContextMenu 清空它）
   pendingSelectionText = savedSelectionText.value
+
+  // 如果有选中文本，保存选区位置信息
+  if (pendingSelectionText && vditorInstance) {
+    const fullContent = vditorInstance.getValue()
+    const startIndex = fullContent.indexOf(pendingSelectionText)
+    if (startIndex !== -1) {
+      selectionStart = startIndex
+      contentBeforeSelection = fullContent.slice(0, startIndex)
+      contentAfterSelection = fullContent.slice(startIndex + pendingSelectionText.length)
+    } else {
+      // 选中文本不在内容中，按没有选中文本处理
+      pendingSelectionText = ''
+    }
+  } else {
+    selectionStart = 0
+    contentBeforeSelection = ''
+    contentAfterSelection = ''
+  }
 
   hideContextMenu()
   if (!settingStore.settings.aiUrl || !settingStore.settings.aiKey || !settingStore.settings.aiModel) {
