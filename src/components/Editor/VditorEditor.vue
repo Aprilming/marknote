@@ -30,7 +30,6 @@ const contextMenuRef = ref<HTMLElement>()
 const contextMenuStyle = ref<{left: string, top: string}>({left: '0px', top: '0px'})
 const savedSelectionText = ref('') // 保存右键菜单打开时的选中文本
 let pendingSelectionText = '' // 待处理的选中文本（用于传递给AI）
-let selectionStart = 0 // 选中内容的起始位置
 let contentBeforeSelection = '' // 选中内容之前的内容
 let contentAfterSelection = '' // 选中内容之后的内容
 
@@ -78,7 +77,7 @@ function getSelectionText(): string {
   // 如果有选中文本且在编辑器内，则返回选中文本
   if (selectedText) {
     const editorEl = editorContainer.value?.querySelector('.vditor-reset')
-    if (editorEl?.contains(selection?.anchorNode)) {
+    if (editorEl?.contains(selection?.anchorNode ?? null)) {
       return selectedText
     }
   }
@@ -221,7 +220,6 @@ async function callAI(assistantId: string) {
     document.body.style.cursor = ''
     aiAbortController = null
     pendingSelectionText = '' // 清除待处理的选中文本
-    selectionStart = 0
     contentBeforeSelection = ''
     contentAfterSelection = ''
   }
@@ -283,7 +281,6 @@ function handleAI(assistantId: string) {
     const fullContent = vditorInstance.getValue()
     const startIndex = fullContent.indexOf(pendingSelectionText)
     if (startIndex !== -1) {
-      selectionStart = startIndex
       contentBeforeSelection = fullContent.slice(0, startIndex)
       contentAfterSelection = fullContent.slice(startIndex + pendingSelectionText.length)
     } else {
@@ -291,7 +288,6 @@ function handleAI(assistantId: string) {
       pendingSelectionText = ''
     }
   } else {
-    selectionStart = 0
     contentBeforeSelection = ''
     contentAfterSelection = ''
   }
