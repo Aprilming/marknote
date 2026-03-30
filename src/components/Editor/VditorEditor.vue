@@ -33,6 +33,7 @@ let pendingSelectionText = '' // 待处理的选中文本（用于传递给AI）
 let contentBeforeSelection = '' // 选中内容之前的内容
 let contentAfterSelection = '' // 选中内容之后的内容
 let userHadSelection = false   // 用户发起 AI 请求时是否有选中文本
+let originalContent = '' // 原始编辑器内容（用于匹配失败时保留原文）
 
 const hasAIConfig = computed(() => true) // 始终显示菜单，未配置时点击会提示
 
@@ -155,10 +156,17 @@ async function callAI(assistantId: string) {
     // 根据是否有选中文本决定初始内容
     // 有选中文本时：handleAI 已经删除了选中内容，编辑器现在只有 contentBeforeSelection + contentAfterSelection
     // 无选中文本时：清空编辑器
+    // 注意：如果 pendingSelectionText 存在但匹配失败（userHadSelection=false），保留原文追加 AI 回复
+    console.log('[DEBUG callAI] userHadSelection:', userHadSelection, 'pendingSelectionText:', !!pendingSelectionText, 'originalContent:', !!originalContent)
     if (vditorInstance) {
       if (!userHadSelection) {
-        // 没有选中文本：清空所有内容
-        vditorInstance.setValue('')
+        // 有选中文本但匹配失败时，保留原文（originalContent）
+        if (!pendingSelectionText) {
+          console.log('[DEBUG callAI] about to setValue empty')
+          vditorInstance.setValue('')
+        } else {
+          console.log('[DEBUG callAI] skipping setValue empty, preserving content')
+        }
       }
       // userHadSelection 为 true 时，编辑器内容已经在 handleAI 中设置好了
     }
@@ -181,9 +189,13 @@ async function callAI(assistantId: string) {
               fullContent += content
               // 流式更新编辑器内容
               if (vditorInstance) {
+                console.log('[DEBUG streaming] userHadSelection:', userHadSelection, 'originalContent length:', originalContent.length, 'fullContent length:', fullContent.length)
                 if (userHadSelection) {
                   // 有选中文本：拼接 选中前内容 + AI回复 + 选中后内容
                   vditorInstance.setValue(contentBeforeSelection + fullContent + contentAfterSelection)
+                } else if (originalContent) {
+                  // 匹配失败但有 originalContent：保留原文，追加 AI 回复
+                  vditorInstance.setValue(originalContent + fullContent)
                 } else {
                   // 没有选中文本：直接显示AI回复
                   vditorInstance.setValue(fullContent)
@@ -223,6 +235,7 @@ async function callAI(assistantId: string) {
     pendingSelectionText = '' // 清除待处理的选中文本
     contentBeforeSelection = ''
     contentAfterSelection = ''
+    originalContent = ''
   }
 }
 
@@ -277,28 +290,54 @@ function handleAI(assistantId: string) {
   // 先保存选中文本（避免 hideContextMenu 清空它）
   pendingSelectionText = savedSelectionText.value
 
-  // 使用 savedSelectionText 判断是否有选中文本（不需要依赖 vditor.getSelection()）
+  // 判断是否有选中文本
   userHadSelection = false
   contentBeforeSelection = ''
   contentAfterSelection = ''
+  originalContent = ''
 
-  if (vditorInstance && pendingSelectionText) {
+  // 使用首尾片段匹配来定位选中文本
+  if (vditorInstance && savedSelectionText.value) {
     const fullContent = vditorInstance.getValue()
-    let startIndex = fullContent.indexOf(pendingSelectionText)
+    const text = pendingSelectionText
 
-    // 如果 indexOf 失败，尝试规范化后匹配（换行符差异）
-    if (startIndex === -1) {
-      const normalizedContent = fullContent.replace(/\r\n/g, '\n')
-      const normalizedPending = pendingSelectionText.replace(/\r\n/g, '\n')
-      startIndex = normalizedContent.indexOf(normalizedPending)
-    }
+    // 取前15个字和后15个字
+    const prefixLength = 5
+    const suffixLength = 5
+    const prefix = text.slice(0, prefixLength)
+    const suffix = text.slice(-suffixLength)
 
-    if (startIndex !== -1) {
-      userHadSelection = true
-      contentBeforeSelection = fullContent.slice(0, startIndex)
-      contentAfterSelection = fullContent.slice(startIndex + pendingSelectionText.length)
+    console.log('[DEBUG handleAI] fullContent:', JSON.stringify(fullContent.slice(0, 500)))
+    console.log('[DEBUG handleAI] selected text:', JSON.stringify(text.slice(0, 500)))
+    console.log('[DEBUG handleAI] prefix:', JSON.stringify(prefix))
+    console.log('[DEBUG handleAI] suffix:', JSON.stringify(suffix))
+
+    // 找前缀和后缀在编辑器内容中的位置
+    const prefixIndex = fullContent.indexOf(prefix)
+    const suffixIndex = fullContent.indexOf(suffix, prefixIndex !== -1 ? prefixIndex : 0)
+
+    console.log('[DEBUG handleAI] prefix index:', prefixIndex, 'suffix index:', suffixIndex)
+
+    if (prefixIndex !== -1 && suffixIndex !== -1 && prefixIndex < suffixIndex) {
+      // 找到了前缀和后缀，用它们来精确计算位置
+      contentBeforeSelection = fullContent.slice(0, prefixIndex)
+      contentAfterSelection = fullContent.slice(suffixIndex + suffixLength)
+
       // 删除选中内容：设置内容为选中前+选中后
       vditorInstance.setValue(contentBeforeSelection + contentAfterSelection)
+      userHadSelection = true
+      console.log('[DEBUG handleAI] matched, contentBefore length:', contentBeforeSelection.length, 'contentAfter length:', contentAfterSelection.length)
+    } else if (prefixIndex !== -1) {
+      // 只找到前缀，用 text.length 估算
+      contentBeforeSelection = fullContent.slice(0, prefixIndex)
+      contentAfterSelection = fullContent.slice(prefixIndex + text.length)
+      vditorInstance.setValue(contentBeforeSelection + contentAfterSelection)
+      userHadSelection = true
+      console.log('[DEBUG handleAI] prefix only matched, contentBefore length:', contentBeforeSelection.length)
+    } else {
+      // 匹配失败：保存原文用于流式输出
+      originalContent = fullContent
+      console.log('[DEBUG handleAI] NOT matched, originalContent length:', fullContent.length)
     }
   }
 
