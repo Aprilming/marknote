@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
-import VditorEditor from './VditorEditor.vue'
+import TiptapEditor from './TiptapEditor.vue'
 import { useNoteStore } from '@/stores/noteStore'
 import { useSettingStore } from '@/stores/settingStore'
 import { useAutoSave } from '@/composables/useAutoSave'
@@ -116,7 +116,7 @@ function handleEditorUpdate(md: string) {
     </Transition>
 
     <div class="editor-wrapper">
-      <VditorEditor
+      <TiptapEditor
         :initial-content="localContent"
         :font-size="settingStore.settings.fontSize"
         :font-family="settingStore.settings.fontFamily"
