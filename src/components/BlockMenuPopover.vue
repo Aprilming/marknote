@@ -19,50 +19,6 @@
         <span class="bm-icon">{{ t.icon }}</span>{{ t.label }}
       </button>
 
-<!--      <div class="bm-divider" />-->
-
-<!--      &lt;!&ndash; 字体样式 &ndash;&gt;-->
-<!--      <div class="bm-section-label">文字样式</div>-->
-
-<!--      &lt;!&ndash; 字重 &ndash;&gt;-->
-<!--      <div class="bm-row">-->
-<!--        <span class="bm-row-label">字重</span>-->
-<!--        <div class="bm-size-buttons">-->
-<!--          <button class="bm-size-btn" @click="editor?.chain().focus().setBold().run()">粗体</button>-->
-<!--          <button class="bm-size-btn" @click="editor?.chain().focus().unsetBold().run()">正常</button>-->
-<!--        </div>-->
-<!--      </div>-->
-
-<!--      &lt;!&ndash; 字体颜色 &ndash;&gt;-->
-<!--      <div class="bm-row">-->
-<!--        <span class="bm-row-label">字色</span>-->
-<!--        <div class="bm-colors">-->
-<!--          <button-->
-<!--            v-for="c in TEXT_COLORS"-->
-<!--            :key="c.value"-->
-<!--            class="bm-color-dot"-->
-<!--            :style="{ background: c.value, border: c.value === 'inherit' ? '1px solid #ccc' : 'none' }"-->
-<!--            :title="c.label"-->
-<!--            @click="setTextColor(c.value)"-->
-<!--          />-->
-<!--        </div>-->
-<!--      </div>-->
-
-<!--      &lt;!&ndash; 背景色 &ndash;&gt;-->
-<!--      <div class="bm-row">-->
-<!--        <span class="bm-row-label">背景</span>-->
-<!--        <div class="bm-colors">-->
-<!--          <button-->
-<!--            v-for="c in BG_COLORS"-->
-<!--            :key="c.value"-->
-<!--            class="bm-color-dot"-->
-<!--            :style="{ background: c.value, border: c.value === 'none' ? '1px solid #ccc' : 'none' }"-->
-<!--            :title="c.label"-->
-<!--            @click="setBgColor(c.value)"-->
-<!--          />-->
-<!--        </div>-->
-<!--      </div>-->
-
       <div class="bm-divider" />
 
       <!-- 块操作 -->
@@ -120,28 +76,6 @@ const BLOCK_TYPES = [
     run: (e: Editor) => e.chain().focus().toggleCodeBlock().run() },
 ]
 
-const TEXT_COLORS = [
-  { label: '默认', value: 'inherit' },
-  { label: '红', value: '#e03e3e' },
-  { label: '橙', value: '#d9730d' },
-  { label: '黄', value: '#dfab01' },
-  { label: '绿', value: '#0f7b6c' },
-  { label: '蓝', value: '#0b6e99' },
-  { label: '紫', value: '#6940a5' },
-  { label: '灰', value: '#787774' },
-]
-
-const BG_COLORS = [
-  { label: '无', value: 'none' },
-  { label: '红', value: '#fddede' },
-  { label: '橙', value: '#fdecc8' },
-  { label: '黄', value: '#fef3b7' },
-  { label: '绿', value: '#dbeddb' },
-  { label: '蓝', value: '#d3e5ef' },
-  { label: '紫', value: '#e8deee' },
-  { label: '灰', value: '#e3e2e0' },
-]
-
 // ---- 操作 ----
 
 function focusBlock() {
@@ -154,25 +88,7 @@ function convert(type: typeof BLOCK_TYPES[0]) {
   close()
 }
 
-function setTextColor(color: string) {
-  focusBlock()
-  if (color === 'inherit') {
-    props.editor?.chain().focus().unsetColor().run()
-  } else {
-    props.editor?.chain().focus().setColor(color).run()
-  }
-  close()
-}
 
-function setBgColor(color: string) {
-  focusBlock()
-  if (color === 'none') {
-    props.editor?.chain().focus().unsetHighlight().run()
-  } else {
-    props.editor?.chain().focus().setHighlight({ color }).run()
-  }
-  close()
-}
 
 function duplicate() {
   if (!props.editor) return
