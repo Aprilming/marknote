@@ -5,12 +5,15 @@ import { useNoteStore } from '@/stores/noteStore'
 import { useSettingStore } from '@/stores/settingStore'
 import { useAutoSave } from '@/composables/useAutoSave'
 import { useFileSystem } from '@/composables/useFileSystem'
+import { useSourceMode } from '@/composables/useSourceMode'
 
 const noteStore = useNoteStore()
 const settingStore = useSettingStore()
 const { writeNote } = useFileSystem()
+const { isSourceMode, toggleSourceMode } = useSourceMode()
 
 const localContent = ref('')
+const sourceTextareaRef = ref<HTMLTextAreaElement | null>(null)
 
 // 当前笔记是否锁定
 const isLocked = computed(() => currentNote.value?.isLocked ?? false)
@@ -37,9 +40,21 @@ watch(
   () => currentNote.value?.id,
   () => {
     localContent.value = currentNote.value?.content || ''
+    // 切换笔记时重置源码模式
+    isSourceMode.value = false
   },
   { immediate: true }
 )
+
+// 监听源码模式切换，确保 textarea 内容同步
+watch(isSourceMode, (newVal) => {
+  if (newVal) {
+    // 源码模式激活时，等待 DOM 更新后聚焦
+    setTimeout(() => {
+      sourceTextareaRef.value?.focus()
+    }, 50)
+  }
+})
 
 // auto-save
 const { isSaving } = useAutoSave(
@@ -126,13 +141,36 @@ function handleEditorUpdate(md: string) {
     </Transition>
 
     <div class="editor-wrapper">
+      <!-- 源码模式编辑 -->
+      <textarea
+        v-if="isSourceMode"
+        ref="sourceTextareaRef"
+        v-model="localContent"
+        class="source-textarea"
+        :readonly="isLocked"
+        placeholder="在此输入 Markdown 源码..."
+      ></textarea>
+
+      <!-- 正常 Markdown 编辑模式 -->
       <TiptapEditor
+        v-else
         :initial-content="localContent"
         :font-size="settingStore.settings.fontSize"
         :font-family="settingStore.settings.fontFamily"
         :is-locked="isLocked"
         @update="handleEditorUpdate"
       />
+
+      <!-- source mode toggle button -->
+      <button
+        class="source-mode-button"
+        :class="{ 'is-active': isSourceMode }"
+        @click.stop="toggleSourceMode"
+        :title="isSourceMode ? '切换到 Markdown' : '切换到源码'"
+      >
+        <i v-if="isSourceMode" class="i-mdi-markdown"></i>
+        <i v-else class="i-mdi-code-tags"></i>
+      </button>
 
       <!-- navigation hints -->
       <div v-if="noteStore.currentIndex > 0" class="nav-hint left-hint" @click="noteStore.selectPrev()">
@@ -187,6 +225,36 @@ function handleEditorUpdate(md: string) {
   display: flex;
   flex-direction: column;
   min-height: 0;
+}
+
+.source-textarea {
+  position: relative;
+  z-index: 10;
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  padding: 40px 48px 40px 72px;
+  overflow: auto;
+  background: var(--color-background);
+  color: var(--color-text);
+  border: none;
+  outline: none;
+  resize: none;
+  font-family: v-bind('settingStore.settings.fontFamily');
+  font-size: v-bind('settingStore.settings.fontSize + "px"');
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  box-sizing: border-box;
+}
+
+.source-textarea::placeholder {
+  color: var(--color-text-secondary);
+}
+
+.source-textarea:read-only {
+  cursor: not-allowed;
+  background: var(--color-surface);
 }
 
 .nav-hint {
@@ -269,6 +337,39 @@ function handleEditorUpdate(md: string) {
 }
 
 .lock-button i {
+  font-size: 16px;
+}
+
+.source-mode-button {
+  position: absolute;
+  bottom: 5px;
+  right: 130px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 20px;
+  background-color: var(--color-surface);
+  color: var(--color-text-secondary);
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  transition: all 0.15s;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.source-mode-button:hover {
+  color: var(--color-text);
+  transform: scale(1.05);
+}
+
+.source-mode-button.is-active {
+  color: var(--color-primary);
+}
+
+.source-mode-button i {
   font-size: 16px;
 }
 

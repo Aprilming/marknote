@@ -61,12 +61,14 @@ function matchesShortcut(e: KeyboardEvent, shortcut: string): boolean {
     keyMatch = e.key === 'ArrowRight'
   } else if (key === 'backspace') {
     keyMatch = e.key === 'Backspace'
-  } else if (key === 'n' || key === 'f' || key === 'p') {
+  } else if (key === 'n' || key === 'f' || key === 'p' || key === 'l') {
     keyMatch = e.key.toLowerCase() === key
   } else if (key === '[') {
     keyMatch = e.key === '['
   } else if (key === ']') {
     keyMatch = e.key === ']'
+  } else if (key === '/') {
+    keyMatch = e.key === '/'
   }
 
   return ctrlMatch && altMatch && shiftMatch && cmdMatch && keyMatch
@@ -74,7 +76,7 @@ function matchesShortcut(e: KeyboardEvent, shortcut: string): boolean {
 
 function blockNoteShortcuts(e: KeyboardEvent) {
   const shortcuts = settingStore.settings.shortcuts
-  const blockedShortcuts = [shortcuts.prevNote, shortcuts.nextNote, shortcuts.newNote, shortcuts.deleteNote, shortcuts.lock]
+  const blockedShortcuts = [shortcuts.prevNote, shortcuts.nextNote, shortcuts.newNote, shortcuts.deleteNote, shortcuts.lock, shortcuts.toggleSource]
 
   for (const shortcut of blockedShortcuts) {
     if (matchesShortcut(e, shortcut)) {
@@ -127,6 +129,7 @@ const shortcutLabels: Record<keyof ShortcutSettings, string> = {
   deleteNote: '删除页面',
   pin: '置顶窗口',
   lock: '锁定/解锁笔记',
+  toggleSource: '切换源码模式',
 }
 
 // 快捷键说明
@@ -138,6 +141,7 @@ const shortcutDescs: Record<keyof ShortcutSettings, string> = {
   deleteNote: '应用内快捷键，删除当前笔记',
   pin: '应用内快捷键，切换窗口置顶状态',
   lock: '应用内快捷键，锁定/解锁当前笔记',
+  toggleSource: '应用内快捷键，切换 Markdown/源码模式',
 }
 
 // 开始录制快捷键
@@ -199,6 +203,7 @@ function handleKeydown(e: KeyboardEvent) {
       case 'Tab': keyName = 'Tab'; break
       case 'Escape': keyName = 'Esc'; break
       case 'Backspace': keyName = 'Backspace'; break
+      case 'Slash': keyName = '/'; break
       default: keyName = e.code
     }
   }

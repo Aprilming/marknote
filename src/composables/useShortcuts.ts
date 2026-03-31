@@ -2,6 +2,7 @@ import { onMounted, onUnmounted } from 'vue'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { useNoteStore } from '@/stores/noteStore'
 import { useSettingStore } from '@/stores/settingStore'
+import { useSourceMode } from '@/composables/useSourceMode'
 
 /**
  * 检测按键是否匹配快捷键配置
@@ -31,6 +32,8 @@ function matchesShortcut(event: KeyboardEvent, shortcut: string): boolean {
     keyMatch = event.key === '['
   } else if (key === ']') {
     keyMatch = event.key === ']'
+  } else if (key === '/') {
+    keyMatch = event.key === '/'
   }
 
   return ctrlMatch && altMatch && shiftMatch && cmdMatch && keyMatch
@@ -42,6 +45,7 @@ function matchesShortcut(event: KeyboardEvent, shortcut: string): boolean {
 export function useShortcuts(onOpenSettings?: () => void) {
   const noteStore = useNoteStore()
   const settingStore = useSettingStore()
+  const { toggleSourceMode } = useSourceMode()
 
   async function handleKeydown(e: KeyboardEvent) {
     // 搜索框里不触发快捷键
@@ -101,6 +105,13 @@ export function useShortcuts(onOpenSettings?: () => void) {
       if (noteStore.currentNoteId) {
         noteStore.toggleLock(noteStore.currentNoteId)
       }
+      return
+    }
+
+    // 切换源码模式
+    if (matchesShortcut(e, shortcuts.toggleSource)) {
+      e.preventDefault()
+      toggleSourceMode()
       return
     }
 
