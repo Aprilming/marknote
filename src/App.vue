@@ -64,14 +64,6 @@ onMounted(async () => {
   // 获取 Tauri 窗口实例
   const appWindow = getCurrentWindow()
 
-  // 监听键盘快捷键 Cmd+F 打开搜索页面
-  window.addEventListener('keydown', (event) => {
-    if ((event.metaKey || event.ctrlKey) && event.key === 'f') {
-      event.preventDefault()
-      openSearchPage()
-    }
-  })
-
   // Load settings
   settingStore.loadSettings()
 
@@ -94,12 +86,21 @@ onMounted(async () => {
       appWindow.hide()
     }
   })
-
-  // 冷启动时自动检查更新
-  await checkForUpdates()
-
+  // 监听键盘快捷键 Cmd+F 打开搜索页面
+  window.addEventListener('keydown', (event) => {
+    if ((event.metaKey || event.ctrlKey) && event.key === 'f') {
+      event.preventDefault()
+      openSearchPage()
+    }
+    if ((event.metaKey || event.ctrlKey) && event.key === ',') {
+      event.preventDefault()
+      openSettings()
+    }
+  })
   // 标记初始化完成
   isAppReady.value = true
+  // 冷启动时自动检查更新
+  await checkForUpdates()
 })
 
 onUnmounted(() => {
