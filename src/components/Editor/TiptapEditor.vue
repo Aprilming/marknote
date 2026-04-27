@@ -588,6 +588,17 @@ const editor = useEditor({
         return true
       }
     },
+    // 全选 + 复制时粘贴 markdown 源码（含 ``` 等标记），非全选时保持默认纯文本
+    clipboardTextSerializer: (slice) => {
+      const ed = editor.value
+      if (ed) {
+        const { from, to } = ed.state.selection
+        if (from === 0 && to === ed.state.doc.content.size) {
+          return ed.storage.markdown.getMarkdown() || ''
+        }
+      }
+      return slice.content.textBetween(0, slice.content.size, '\n\n')
+    },
     handlePaste(view, event) {
       // 处理粘贴事件，特别是图片粘贴
       const clipboardData = event.clipboardData
