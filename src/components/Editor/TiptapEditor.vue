@@ -278,7 +278,7 @@ function handleAI(assistantId: string) {
 
   // 使用首尾片段匹配来定位选中文本（逐步递减长度）
   if (editor.value && savedSelectionText.value) {
-    const fullContent = editor.value.storage.markdown.getMarkdown()
+    const fullContent = getNormalizedMarkdown()
     const text = pendingSelectionText
 
     const MAX_PREFIX_SUFFIX = 15
@@ -346,7 +346,7 @@ async function callAI(assistantId: string) {
   isAILoading.value = true
   document.body.style.cursor = 'wait'
 
-  const text = String(pendingSelectionText || editor.value?.storage.markdown.getMarkdown() || '')
+  const text = String(pendingSelectionText || getNormalizedMarkdown() || '')
 
   // 根据ID获取助手配置
   const assistant = assistantsStore.getAssistantById(assistantId)
@@ -495,16 +495,35 @@ async function callAI(assistantId: string) {
   }
 }
 
-const handleLink = () => {
+
+/* ----- 链接格式转换 ----- */
+
+// 检测当前选区文本是否为纯 URL
+const isPlainUrl = () => {
+  const ed = editor.value
+  if (!ed) return false
+  const { from, to } = ed.state.selection
+  if (from === to) return false
+  const text = ed.state.doc.textBetween(from, to)
+  return /^(http?:\/\/\S+)$/.test(text)
+}
+
+// 链接 → 纯文本（取消链接）
+const convertLinkToPlainText = () => {
   const ed = editor.value
   if (!ed) return
-  if (ed.isActive('link')) {
-    ed.chain().focus().unsetLink().run()
-  } else {
-    const url = window.prompt(t('editor.linkPrompt'))
-    if (url) {
-      ed.chain().focus().setLink({ href: url }).run()
-    }
+  ed.chain().focus().unsetLink().run()
+}
+
+// 纯 URL → Markdown 链接格式 [url](url)
+const convertUrlToMarkdown = () => {
+  const ed = editor.value
+  if (!ed) return
+  const { from, to } = ed.state.selection
+  const text = ed.state.doc.textBetween(from, to)
+  const urlMatch = text.match(/^(https?:\/\/\S+)$/)
+  if (urlMatch) {
+    ed.chain().focus().setTextSelection({ from, to }).deleteSelection().insertContent(`[${urlMatch[1]}](${urlMatch[1]})`).run()
   }
 }
 
@@ -725,7 +744,7 @@ const editor = useEditor({
       if (ed) {
         const { from, to } = ed.state.selection
         if (from === 0 && to === ed.state.doc.content.size) {
-          return ed.storage.markdown.getMarkdown() || ''
+          return getNormalizedMarkdown() || ''
         }
       }
       // 遍历选中的节点：链接文本输出 [text](url)，其余输出纯文本
@@ -812,6 +831,14 @@ const editor = useEditor({
         return true
       }
 
+      // 粘贴纯 URL 时，自动转为 Markdown 链接格式 [url](url)
+      if (text && /^(https?:\/\/\S+)$/.test(text.trim())) {
+        event.preventDefault()
+        const url = text.trim()
+        editor.value?.commands.insertContent(`[${url}](${url})`)
+        return true
+      }
+
       return false
     },
     handleDrop(view, event) {
@@ -879,12 +906,20 @@ const editor = useEditor({
   },
   onUpdate: ({ editor }) => {
     const markdown = editor.storage.markdown.getMarkdown()
-    emit('update', markdown)
+    // 将 <url> 自动链接（prosemirror-markdown 在显示文本与 href 相同时输出为 <url>）转为 [url](url)
+    emit('update', markdown.replace(/<(https?:\/\/[^>\s]+)>/g, '[$1]($1)'))
   }
 })
 
+// 获取规格化的 Markdown：将 <url> 自动链接转为 [url](url) 显式链接
+const getNormalizedMarkdown = (): string => {
+  if (!editor.value) return ''
+  const md = getNormalizedMarkdown()
+  return md.replace(/<(https?:\/\/[^>\s]+)>/g, '[$1]($1)')
+}
+
 watch(() => props.initialContent, (newContent) => {
-  if (editor.value && newContent !== editor.value.storage.markdown.getMarkdown()) {
+  if (editor.value && newContent !== getNormalizedMarkdown()) {
     editor.value.commands.setContent(newContent)
     // 切换笔记时滚动到顶部
     editor.value.view.dom.scrollTop = 0
@@ -1049,15 +1084,25 @@ defineExpose({
 
       <div class="bm-sep" />
 
-      <!-- 链接 -->
-      <button @click="handleLink"
-        :class="{ 'is-active': editor.isActive('link') }"
-        :data-tip="$t('editor.link')">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
-          <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
-        </svg>
-      </button>
+
+      <!-- 链接激活时：额外提供转纯文本 -->
+      <template v-if="editor.isActive('link')">
+        <button @click="convertLinkToPlainText" :data-tip="$t('editor.linkToPlainText')" class="bm-link-btn">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+            <line x1="3" y1="3" x2="21" y2="21"/>
+          </svg>
+        </button>
+      </template>
+      <!-- 纯 URL 文本时：额外提供转 Markdown -->
+      <template v-else-if="isPlainUrl()">
+        <button @click="convertUrlToMarkdown" :data-tip="$t('editor.linkToMarkdown')" class="bm-link-btn">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/><polyline points="8 12 12 16 16 12"/><line x1="12" y1="8" x2="12" y2="16"/>
+          </svg>
+        </button>
+      </template>
 
       <div class="bm-sep" />
 
