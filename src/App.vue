@@ -126,6 +126,9 @@ onMounted(async () => {
   // 获取 Tauri 窗口实例
   const appWindow = getCurrentWindow()
 
+  // 冷启动时强制居中（需尽早执行，避免等待 iCloud 加载等耗时操作）
+  await appWindow.center()
+
   // Load settings
   settingStore.loadSettings()
 
@@ -188,8 +191,6 @@ onMounted(async () => {
   isAppReady.value = true
   // 冷启动时自动检查更新
   await checkForUpdates()
-  // 冷启动时强制居中（tauri_plugin_window_state 会恢复上次位置，需覆盖）
-  await appWindow.center()
 })
 
 onUnmounted(() => {

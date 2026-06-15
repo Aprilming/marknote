@@ -1012,6 +1012,10 @@ pub fn run() {
                 }
                 // 启动时也检查一次（window-state 可能恢复了一个屏幕外的位置）
                 ensure_window_visible(app.handle());
+                // 冷启动强制居中（window-state 恢复的位置并非居中，需覆盖）
+                if let Some(w) = app.get_webview_window("main") {
+                    w.center().ok();
+                }
             }
 
             Ok(())
