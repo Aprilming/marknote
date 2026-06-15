@@ -181,9 +181,14 @@ fn is_plist_enabled() -> bool {
 /// macOS 13+ 使用 SMAppService（系统设置 > 登录项可见）
 /// 旧版 macOS 使用 LaunchAgent plist 回退
 pub fn enable() -> Result<(), String> {
+    // 先清理可能遗留的 plist，避免双重启动
+    let _ = disable_plist();
+
     if apple::is_available() {
-        // 先清理可能遗留的 plist，避免双重启动
-        let _ = disable_plist();
+        // 检查是否已注册，避免重复注册导致状态异常
+        if apple::is_enrolled().unwrap_or(false) {
+            return Ok(());
+        }
         return apple::enable();
     }
     enable_plist()
