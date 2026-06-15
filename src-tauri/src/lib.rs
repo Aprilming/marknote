@@ -887,7 +887,6 @@ unsafe extern "C" fn display_reconfiguration_callback(
 async fn get_network_info() -> Result<NetworkInfo, String> {
     let public_ip = fetch_public_ip().await.ok();
     let local_interfaces = list_local_interfaces().unwrap_or_default();
-
     Ok(NetworkInfo {
         public_ip,
         local_interfaces,
@@ -897,7 +896,7 @@ async fn get_network_info() -> Result<NetworkInfo, String> {
 /// 请求远程 API 获取出口 IP 信息
 async fn fetch_public_ip() -> Result<PublicIpInfo, String> {
     let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(5))
+        .timeout(std::time::Duration::from_secs(10))
         .build()
         .map_err(|e| e.to_string())?;
 
