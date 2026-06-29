@@ -120,10 +120,18 @@ watch(isSourceMode, (newVal, oldVal) => {
     // 源码模式激活时，等待 DOM 更新后聚焦
     setTimeout(() => {
       sourceTextareaRef.value?.focus()
+      if (searchVisible.value && searchQuery.value) {
+        updateSourceSearchState()
+      }
     }, 50)
   } else if (oldVal && !newVal) {
     // 从源码模式切换到普通模式时，确保内容已同步
     // 这里不需要额外处理，因为 handleSourceInput 已经实时同步了内容
+    nextTick(() => {
+      if (searchVisible.value && searchQuery.value) {
+        applySearchQuery(searchQuery.value)
+      }
+    })
   }
 })
 
@@ -227,6 +235,8 @@ const searchVisible = ref(false)
 const searchQuery = ref('')
 const searchMatchCount = ref(0)
 const searchCurrentIndex = ref(0)
+const sourceSearchMatches = ref<Array<{ start: number; end: number }>>([])
+const sourceSearchCurrentIndex = ref(0)
 const markdownScrollRatios = new Map<string, number>()
 const sourceScrollRatios = new Map<string, number>()
 
@@ -285,6 +295,8 @@ function openSearch() {
   searchQuery.value = ''
   searchMatchCount.value = 0
   searchCurrentIndex.value = 0
+  sourceSearchMatches.value = []
+  sourceSearchCurrentIndex.value = 0
   nextTick(() => {
     document.querySelector<HTMLInputElement>('.search-input')?.focus()
   })
@@ -295,35 +307,104 @@ function closeSearch() {
   searchQuery.value = ''
   searchMatchCount.value = 0
   searchCurrentIndex.value = 0
+  sourceSearchMatches.value = []
+  sourceSearchCurrentIndex.value = 0
   editorRef.value?.clearSearch()
+}
+
+function findSourceMatches(query: string) {
+  if (!query.trim()) return []
+
+  const content = sourceTextareaRef.value?.value ?? localContent.value
+  const lowerContent = content.toLowerCase()
+  const lowerQuery = query.toLowerCase()
+  const matches: Array<{ start: number; end: number }> = []
+  let index = 0
+
+  while (true) {
+    index = lowerContent.indexOf(lowerQuery, index)
+    if (index === -1) break
+    matches.push({ start: index, end: index + query.length })
+    index += 1
+  }
+
+  return matches
+}
+
+function updateSourceSearchState(query = searchQuery.value) {
+  sourceSearchMatches.value = findSourceMatches(query)
+  sourceSearchCurrentIndex.value = sourceSearchMatches.value.length > 0
+    ? Math.min(sourceSearchCurrentIndex.value, sourceSearchMatches.value.length - 1)
+    : 0
+  searchMatchCount.value = sourceSearchMatches.value.length
+  searchCurrentIndex.value = searchMatchCount.value > 0 ? sourceSearchCurrentIndex.value + 1 : 0
+}
+
+function selectSourceMatch(index: number) {
+  const textarea = sourceTextareaRef.value
+  const match = sourceSearchMatches.value[index]
+  if (!textarea || !match) return
+
+  nextTick(() => {
+    textarea.focus()
+    textarea.setSelectionRange(match.start, match.end)
+    const beforeMatch = textarea.value.slice(0, match.start)
+    const lineHeight = Number.parseFloat(getComputedStyle(textarea).lineHeight) || settingStore.settings.fontSize * 1.6
+    const lineIndex = beforeMatch.split('\n').length - 1
+    const centered = lineIndex * lineHeight - textarea.clientHeight / 3
+    textarea.scrollTop = Math.max(0, centered)
+  })
+}
+
+function applySearchQuery(query: string) {
+  if (isSourceMode.value) {
+    updateSourceSearchState(query)
+  } else {
+    editorRef.value?.setSearchQuery(query)
+    const state = editorRef.value?.getSearchState()
+    if (state) {
+      searchMatchCount.value = state.matches
+      searchCurrentIndex.value = state.matches > 0 ? state.currentIndex + 1 : 0
+    }
+  }
 }
 
 function handleSearchInput(e: Event) {
   const query = (e.target as HTMLInputElement).value
   searchQuery.value = query
-  editorRef.value?.setSearchQuery(query)
-  const state = editorRef.value?.getSearchState()
-  if (state) {
-    searchMatchCount.value = state.matches
-    searchCurrentIndex.value = state.matches > 0 ? state.currentIndex + 1 : 0
-  }
+  sourceSearchCurrentIndex.value = 0
+  applySearchQuery(query)
 }
 
 function handleSearchPrev() {
   if (searchMatchCount.value === 0) return
-  editorRef.value?.searchPrev()
-  const state = editorRef.value?.getSearchState()
-  if (state) {
-    searchCurrentIndex.value = state.currentIndex + 1
+
+  if (isSourceMode.value) {
+    sourceSearchCurrentIndex.value = (sourceSearchCurrentIndex.value - 1 + sourceSearchMatches.value.length) % sourceSearchMatches.value.length
+    searchCurrentIndex.value = sourceSearchCurrentIndex.value + 1
+    selectSourceMatch(sourceSearchCurrentIndex.value)
+  } else {
+    editorRef.value?.searchPrev()
+    const state = editorRef.value?.getSearchState()
+    if (state) {
+      searchCurrentIndex.value = state.currentIndex + 1
+    }
   }
 }
 
 function handleSearchNext() {
   if (searchMatchCount.value === 0) return
-  editorRef.value?.searchNext()
-  const state = editorRef.value?.getSearchState()
-  if (state) {
-    searchCurrentIndex.value = state.currentIndex + 1
+
+  if (isSourceMode.value) {
+    sourceSearchCurrentIndex.value = (sourceSearchCurrentIndex.value + 1) % sourceSearchMatches.value.length
+    searchCurrentIndex.value = sourceSearchCurrentIndex.value + 1
+    selectSourceMatch(sourceSearchCurrentIndex.value)
+  } else {
+    editorRef.value?.searchNext()
+    const state = editorRef.value?.getSearchState()
+    if (state) {
+      searchCurrentIndex.value = state.currentIndex + 1
+    }
   }
 }
 
@@ -354,9 +435,30 @@ function handleSourceInput(e: Event) {
   if (currentNote.value) {
     noteStore.updateNote(currentNote.value.id, { content: target.value })
   }
+  if (searchVisible.value) {
+    updateSourceSearchState()
+  }
 }
 
 function handleSourceKeydown(e: KeyboardEvent) {
+  if (searchVisible.value) {
+    if (e.key === 'Escape') {
+      e.preventDefault()
+      closeSearch()
+      return
+    }
+
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      if (e.shiftKey) {
+        handleSearchPrev()
+      } else {
+        handleSearchNext()
+      }
+      return
+    }
+  }
+
   if (e.key !== 'Tab' || e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return
 
   const textarea = e.target as HTMLTextAreaElement
@@ -439,17 +541,6 @@ function handleToggleSourceMode() {
         @update="handleEditorUpdate"
       />
 
-      <!-- source mode toggle button -->
-      <button
-        class="source-mode-button"
-        :class="{ 'is-active': isSourceMode }"
-        @click.stop="handleToggleSourceMode"
-        :title="isSourceMode ? $t('editor.switchMarkdown') : $t('editor.switchSource')"
-      >
-        <i v-if="isSourceMode" class="i-mdi-markdown"></i>
-        <i v-else class="i-mdi-code-tags"></i>
-      </button>
-
       <!-- navigation hints -->
       <div v-if="noteStore.activeIndex > 0" class="nav-hint left-hint" @click.stop="noteStore.selectPrev()">
         <i class="i-mdi-chevron-left"></i>
@@ -458,9 +549,33 @@ function handleToggleSourceMode() {
         <i class="i-mdi-chevron-right"></i>
       </div>
 
-      <!-- note indicator -->
-      <div class="note-indicator" @click.stop>
-        {{ $t('editor.noteIndicator', { index: noteStore.activeIndex + 1, total: noteStore.activeNoteList.length }) }}
+      <div class="right-bottom-controls">
+        <!-- source mode toggle button -->
+        <button
+          class="source-mode-button"
+          :class="{ 'is-active': isSourceMode }"
+          @click.stop="handleToggleSourceMode"
+          :title="isSourceMode ? $t('editor.switchMarkdown') : $t('editor.switchSource')"
+        >
+          <i v-if="isSourceMode" class="i-mdi-markdown"></i>
+          <i v-else class="i-mdi-code-tags"></i>
+        </button>
+
+        <!-- lock button -->
+        <button
+          class="lock-button"
+          :class="{ 'is-locked': isLocked }"
+          @click.stop="toggleLock"
+          :title="isLocked ? $t('editor.unlockNote') : $t('editor.lockNote')"
+        >
+          <i v-if="isLocked" class="i-mdi-lock"></i>
+          <i v-else class="i-mdi-lock-open-variant"></i>
+        </button>
+
+        <!-- note indicator -->
+        <div class="note-indicator" @click.stop>
+          {{ $t('editor.noteIndicator', { index: noteStore.activeIndex + 1, total: noteStore.activeNoteList.length }) }}
+        </div>
       </div>
 
       <!-- 目录指示器 -->
@@ -477,17 +592,6 @@ function handleToggleSourceMode() {
         </div>
       </div>
 
-      <!-- lock button -->
-      <button
-        class="lock-button"
-        :class="{ 'is-locked': isLocked }"
-        @click.stop="toggleLock"
-        :title="isLocked ? $t('editor.unlockNote') : $t('editor.lockNote')"
-      >
-        <i v-if="isLocked" class="i-mdi-lock"></i>
-        <i v-else class="i-mdi-lock-open-variant"></i>
-      </button>
-
       <!-- bottom bar: word count, color, search -->
       <div class="bottom-bar">
         <div v-show="!searchVisible" class="word-count" @click.stop>
@@ -502,7 +606,7 @@ function handleToggleSourceMode() {
           <i class="i-mdi-palette-outline"></i>
         </button>
         <button
-          v-if="!isSourceMode && !searchVisible"
+          v-if="!searchVisible"
           class="search-toggle-btn"
           @click.stop="openSearch"
           :title="$t('editor.searchInNote')"
@@ -523,7 +627,7 @@ function handleToggleSourceMode() {
       </div>
 
       <!-- search bar -->
-      <div v-if="!isSourceMode && searchVisible" class="search-bar" @click.stop>
+      <div v-if="searchVisible" class="search-bar" @click.stop>
         <input
           type="text"
           class="search-input"
@@ -575,6 +679,8 @@ function handleToggleSourceMode() {
 }
 
 .editor-wrapper {
+  --bottom-control-gap: 8px;
+
   position: relative;
   flex: 1;
   display: flex;
@@ -655,11 +761,17 @@ function handleToggleSourceMode() {
   font-size: 20px;
 }
 
-.note-indicator {
+.right-bottom-controls {
   position: absolute;
   bottom: 10px;
   right: 10px;
   z-index: 11;
+  display: flex;
+  align-items: center;
+  gap: var(--bottom-control-gap);
+}
+
+.note-indicator {
   padding: 6px 14px;
   background-color: var(--color-surface);
   border-radius: 20px;
@@ -738,10 +850,6 @@ function handleToggleSourceMode() {
 }
 
 .lock-button {
-  position: absolute;
-  bottom: 5px;
-  right: 90px;
-  z-index: 11;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -774,10 +882,6 @@ function handleToggleSourceMode() {
 }
 
 .source-mode-button {
-  position: absolute;
-  bottom: 5px;
-  right: 130px;
-  z-index: 11;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -816,7 +920,7 @@ function handleToggleSourceMode() {
   z-index: 11;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--bottom-control-gap);
 }
 
 .word-count {
