@@ -16,7 +16,6 @@ import { useTheme } from '@/composables/useTheme'
 const isTauri = typeof window !== 'undefined' && ('__TAURI__' in window || '__TAURI_INTERNALS__' in window)
 const appWindow = isTauri ? getCurrentWindow() : null
 
-// 拖拽功能 - requestAnimationFrame 同步到刷新率，统一使用物理像素
 let dragState = false
 let dragWinX = 0
 let dragWinY = 0
@@ -34,6 +33,7 @@ async function startDrag(e: MouseEvent) {
 
   const dpr = window.devicePixelRatio || 1
   const pos = await appWindow.outerPosition()
+
   dragWinX = pos.x
   dragWinY = pos.y
   dragStartX = e.screenX * dpr
@@ -46,13 +46,16 @@ async function startDrag(e: MouseEvent) {
 
 function updateWindowPosition() {
   if (!dragState || !appWindow) return
-  const dx = lastScreenX - dragStartX
-  const dy = lastScreenY - dragStartY
+
+  const dx = Math.round(lastScreenX - dragStartX)
+  const dy = Math.round(lastScreenY - dragStartY)
   appWindow.setPosition(new PhysicalPosition(dragWinX + dx, dragWinY + dy))
   rafId = requestAnimationFrame(updateWindowPosition)
 }
 
 function onDragMove(e: MouseEvent) {
+  if (!dragState) return
+
   const dpr = window.devicePixelRatio || 1
   lastScreenX = e.screenX * dpr
   lastScreenY = e.screenY * dpr
@@ -60,7 +63,10 @@ function onDragMove(e: MouseEvent) {
 
 function onDragEnd() {
   dragState = false
-  if (rafId) { cancelAnimationFrame(rafId); rafId = 0 }
+  if (rafId) {
+    cancelAnimationFrame(rafId)
+    rafId = 0
+  }
 }
 
 // Toast 通知
@@ -410,7 +416,7 @@ function getPromptPreview(prompt: string): string {
 
 <template>
   <div class="settings-page" @keydown="handleKeydown" @keyup="cancelRecording" tabindex="0">
-    <div class="settings-header" data-tauri-drag-region @mousedown="startDrag">
+    <div class="settings-header" @mousedown="startDrag">
       <button class="back-btn" @click="goBack">
         <i class="i-mdi-arrow-left"></i>
       </button>

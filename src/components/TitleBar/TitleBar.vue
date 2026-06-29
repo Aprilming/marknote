@@ -121,7 +121,6 @@ function openSettings() {
   emit('openSettings')
 }
 
-// 纯手动拖拽：requestAnimationFrame 同步到刷新率，统一使用物理像素
 let dragState = false
 let dragWinX = 0
 let dragWinY = 0
@@ -138,10 +137,11 @@ async function startDrag(e: MouseEvent) {
   if (e.buttons !== 1 || !appWindow) return
 
   const dpr = window.devicePixelRatio || 1
-  const pos = await appWindow.outerPosition()  // 物理像素
+  const pos = await appWindow.outerPosition()
+
   dragWinX = pos.x
   dragWinY = pos.y
-  dragStartX = e.screenX * dpr  // 逻辑→物理
+  dragStartX = e.screenX * dpr
   dragStartY = e.screenY * dpr
   lastScreenX = dragStartX
   lastScreenY = dragStartY
@@ -151,13 +151,16 @@ async function startDrag(e: MouseEvent) {
 
 function updateWindowPosition() {
   if (!dragState || !appWindow) return
-  const dx = lastScreenX - dragStartX
-  const dy = lastScreenY - dragStartY
+
+  const dx = Math.round(lastScreenX - dragStartX)
+  const dy = Math.round(lastScreenY - dragStartY)
   appWindow.setPosition(new PhysicalPosition(dragWinX + dx, dragWinY + dy))
   rafId = requestAnimationFrame(updateWindowPosition)
 }
 
 function onDragMove(e: MouseEvent) {
+  if (!dragState) return
+
   const dpr = window.devicePixelRatio || 1
   lastScreenX = e.screenX * dpr
   lastScreenY = e.screenY * dpr
@@ -165,17 +168,22 @@ function onDragMove(e: MouseEvent) {
 
 function onDragEnd() {
   dragState = false
-  if (rafId) { cancelAnimationFrame(rafId); rafId = 0 }
+  if (rafId) {
+    cancelAnimationFrame(rafId)
+    rafId = 0
+  }
 }
 
 onMounted(() => {
   document.addEventListener('mousemove', onDragMove)
   document.addEventListener('mouseup', onDragEnd)
 })
+
 onUnmounted(() => {
   document.removeEventListener('mousemove', onDragMove)
   document.removeEventListener('mouseup', onDragEnd)
 })
+
 </script>
 
 <template>
@@ -188,7 +196,6 @@ onUnmounted(() => {
     <div
       class="title-bar"
       :class="{ visible: isVisible }"
-      data-tauri-drag-region
       @mousedown="startDrag"
     >
     <!-- Window Controls -->
