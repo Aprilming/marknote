@@ -11,7 +11,6 @@ import Image from '@tiptap/extension-image'
 import { useSettingStore } from '@/stores/settingStore'
 import { useAssistantsStore } from '@/stores/assistantsStore'
 import { callBaiduSearch } from '@/composables/useBaiduSearch'
-import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
 import { all, createLowlight } from 'lowlight'
 import { createSlashCommand } from './extensions/SlashCommandExtension'
 import { Color } from '@tiptap/extension-color'
@@ -22,6 +21,7 @@ import FontFamily from '@tiptap/extension-font-family'
 import Link from '@tiptap/extension-link'
 import { CodeBlockCopyExtension } from './extensions/CodeBlockCopyExtension'
 import { CodeBlockLanguageExtension } from './extensions/CodeBlockLanguageExtension'
+import { CodeBlockLowlightImeSafe, refreshLowlightAfterImeMeta } from './extensions/CodeBlockLowlightImeSafe'
 import { InlineSearchExtension, searchPluginKey } from './extensions/InlineSearchExtension'
 import Table from '@tiptap/extension-table'
 import TableRow from '@tiptap/extension-table-row'
@@ -81,6 +81,196 @@ const props = defineProps<{
 const emit = defineEmits<{
   update: [markdown: string]
 }>()
+
+const imeDebugEnabled = () => (window as any).__maiknoteImeDebug !== false
+
+const describeDomNode = (node: Node | null): string | null => {
+  if (!node) return null
+  if (node.nodeType === Node.TEXT_NODE) {
+    const text = node.textContent || ''
+    return `#text("${text.slice(0, 24)}", len=${text.length})`
+  }
+  if (node instanceof HTMLElement) {
+    const className = node.className ? `.${String(node.className).replace(/\s+/g, '.')}` : ''
+    return `<${node.tagName.toLowerCase()}${className}>`
+  }
+  return node.nodeName
+}
+
+const getDomSelectionSnapshot = () => {
+  const selection = window.getSelection()
+  if (!selection) return null
+
+  return {
+    anchorNode: describeDomNode(selection.anchorNode),
+    anchorOffset: selection.anchorOffset,
+    focusNode: describeDomNode(selection.focusNode),
+    focusOffset: selection.focusOffset,
+    isCollapsed: selection.isCollapsed,
+    text: selection.toString(),
+  }
+}
+
+const getActiveCodeBlockSnapshot = (ed: any = editor.value) => {
+  if (!ed) return null
+
+  const { from, to, $head } = ed.state.selection
+  let snapshot: { from: number; to: number; text: string; parentName: string } | null = null
+
+  ed.state.doc.descendants((node: any, pos: number) => {
+    if (snapshot || node.type.name !== 'codeBlock') return
+
+    const start = pos
+    const end = pos + node.nodeSize
+    if ($head.pos >= start && $head.pos <= end) {
+      snapshot = {
+        from: start,
+        to: end,
+        text: node.textContent,
+        parentName: $head.parent.type.name,
+      }
+    }
+  })
+
+  return {
+    selection: { from, to, head: $head.pos },
+    codeBlock: snapshot,
+  }
+}
+
+const imeDebug = (phase: string, payload: Record<string, unknown> = {}) => {
+  if (!imeDebugEnabled()) return
+  console.debug(`[MaikNote IME] ${phase}`, {
+    composingFlag: (window as any).__imeComposing,
+    endedAgo: Math.round(performance.now() - ((window as any).__imeEndedAt || 0)),
+    pm: getActiveCodeBlockSnapshot(),
+    domSelection: getDomSelectionSnapshot(),
+    ...payload,
+  })
+}
+
+let pendingImeUpdate = false
+let imeUpdateTimer: ReturnType<typeof setTimeout> | null = null
+let imeCompositionStart: number | null = null
+let imeCompositionText = ''
+let imeHandledFinalCommit = false
+let imeSawCommitBoundary = false
+let imeSuppressCleanupUntil = 0
+
+const normalizeMarkdown = (markdown: string): string =>
+  markdown.replace(/<(https?:\/\/[^>\s]+)>/g, '[$1]($1)')
+
+const isImeEditing = (): boolean => {
+  return Boolean(
+    (window as any).__imeComposing ||
+    performance.now() - ((window as any).__imeEndedAt || 0) < 120
+  )
+}
+
+const getEditorMarkdown = (ed: any = editor.value): string => {
+  if (!ed) return ''
+  return normalizeMarkdown(ed.storage.markdown.getMarkdown())
+}
+
+const emitEditorUpdate = (ed: any = editor.value) => {
+  if (!ed) return
+  emit('update', getEditorMarkdown(ed))
+  pendingImeUpdate = false
+}
+
+const scheduleImeUpdate = () => {
+  if (imeUpdateTimer) clearTimeout(imeUpdateTimer)
+  imeUpdateTimer = setTimeout(() => {
+    imeUpdateTimer = null
+    if (pendingImeUpdate) emitEditorUpdate()
+  }, 120)
+}
+
+type CodeBlockRangeSnapshot = { from: number; to: number; text: string }
+
+const getCodeBlockRangeAt = (ed: any, pos: number): CodeBlockRangeSnapshot | null => {
+  let range: { from: number; to: number; text: string } | null = null
+
+  ed.state.doc.descendants((node: any, nodePos: number) => {
+    if (range || node.type.name !== 'codeBlock') return false
+
+    const from = nodePos
+    const to = nodePos + node.nodeSize
+    if (pos >= from && pos <= to) {
+      range = { from, to, text: node.textContent }
+      return false
+    }
+
+    return true
+  })
+
+  return range
+}
+
+const handleCodeBlockImeFinalCommit = (view: any, event: InputEvent): boolean => {
+  if (
+    !event.data ||
+    !imeCompositionText ||
+    imeCompositionStart === null ||
+    imeHandledFinalCommit ||
+    !imeSawCommitBoundary ||
+    !isImeEditing()
+  ) {
+    return false
+  }
+
+  const codeBlockRange = getCodeBlockRangeAt(view, view.state.selection.$head.pos)
+  if (!codeBlockRange) return false
+
+  const from = imeCompositionStart
+  const to = from + imeCompositionText.length
+
+  if (
+    from < codeBlockRange.from + 1 ||
+    to > codeBlockRange.to - 1 ||
+    to > view.state.doc.content.size
+  ) {
+    return false
+  }
+
+  const textInRange = view.state.doc.textBetween(from, to, '\n', '\n')
+  if (textInRange !== imeCompositionText) {
+    return false
+  }
+
+  imeHandledFinalCommit = true
+  imeSuppressCleanupUntil = performance.now() + 800
+  event.preventDefault()
+
+  imeDebug('codeBlock final IME commit replace', {
+    from,
+    to,
+    composingText: imeCompositionText,
+    textInRange,
+    finalText: event.data,
+  })
+
+  const tr = view.state.tr.insertText(event.data, from, to)
+  view.dispatch(tr)
+  return true
+}
+
+const suppressCodeBlockImeCleanup = (view: any, event: InputEvent): boolean => {
+  if (
+    !imeHandledFinalCommit ||
+    performance.now() > imeSuppressCleanupUntil ||
+    event.data !== null ||
+    !getCodeBlockRangeAt(view, view.state.selection.$head.pos)
+  ) {
+    return false
+  }
+
+  event.preventDefault()
+  imeDebug('codeBlock suppress delayed IME cleanup', {
+    inputType: event.inputType,
+  })
+  return true
+}
 
 // 右键菜单
 const contextMenuVisible = ref(false)
@@ -545,7 +735,7 @@ const editor = useEditor({
     TaskItem.configure({
       nested: true,
     }),
-    CodeBlockLowlight.configure({
+    CodeBlockLowlightImeSafe.configure({
       lowlight,
       defaultLanguage: 'javascript',
     }),
@@ -589,12 +779,93 @@ const editor = useEditor({
   content: props.initialContent,
   editorProps: {
     handleDOMEvents: {
-      compositionstart: () => {
+      compositionstart: (_view, event) => {
+        if (imeUpdateTimer) {
+          clearTimeout(imeUpdateTimer)
+          imeUpdateTimer = null
+        }
+        imeCompositionStart = _view.state.selection.from
+        imeCompositionText = ''
+        imeHandledFinalCommit = false
+        imeSawCommitBoundary = false
+        imeSuppressCleanupUntil = 0
         ;(window as any).__imeComposing = true
+        imeDebug('dom compositionstart', {
+          data: (event as CompositionEvent).data,
+          compositionStart: imeCompositionStart,
+          viewComposing: (_view as any).composing,
+        })
+        return false
       },
-      compositionend: () => {
+      compositionupdate: (_view, event) => {
+        imeCompositionText = (event as CompositionEvent).data || imeCompositionText
+        imeDebug('dom compositionupdate', {
+          data: (event as CompositionEvent).data,
+          compositionStart: imeCompositionStart,
+          compositionText: imeCompositionText,
+          viewComposing: (_view as any).composing,
+        })
+        return false
+      },
+      compositionend: (_view, event) => {
+        imeDebug('dom compositionend:before-refresh', {
+          data: (event as CompositionEvent).data,
+          viewComposing: (_view as any).composing,
+        })
         ;(window as any).__imeComposing = false
         ;(window as any).__imeEndedAt = performance.now()
+        const resetImeCompositionState = () => {
+          imeCompositionStart = null
+          imeCompositionText = ''
+          imeHandledFinalCommit = false
+          imeSawCommitBoundary = false
+        }
+        requestAnimationFrame(() => {
+          const ed = editor.value
+          if (ed && !ed.isDestroyed) {
+            imeDebug('lowlight refresh dispatch')
+            ed.view.dispatch(ed.state.tr.setMeta(refreshLowlightAfterImeMeta, true))
+          }
+          resetImeCompositionState()
+        })
+        scheduleImeUpdate()
+        return false
+      },
+      beforeinput: (_view, event) => {
+        const inputEvent = event as InputEvent
+        if (inputEvent.isComposing || isImeEditing() || getActiveCodeBlockSnapshot(_view)?.codeBlock) {
+          imeDebug('dom beforeinput', {
+            data: inputEvent.data,
+            inputType: inputEvent.inputType,
+            isComposing: inputEvent.isComposing,
+            viewComposing: (_view as any).composing,
+          })
+        }
+        if (inputEvent.data === null && (window as any).__imeComposing) {
+          imeSawCommitBoundary = true
+        }
+        if (suppressCodeBlockImeCleanup(_view, inputEvent)) {
+          return true
+        }
+        if (handleCodeBlockImeFinalCommit(_view, inputEvent)) {
+          return true
+        }
+        return false
+      },
+      input: (_view, event) => {
+        const inputEvent = event as InputEvent
+        if (inputEvent.isComposing || isImeEditing() || getActiveCodeBlockSnapshot(_view)?.codeBlock) {
+          imeDebug('dom input', {
+            data: inputEvent.data,
+            inputType: inputEvent.inputType,
+            isComposing: inputEvent.isComposing,
+            viewComposing: (_view as any).composing,
+          })
+        }
+        if (suppressCodeBlockImeCleanup(_view, inputEvent)) {
+          return true
+        }
+        return false
       },
     },
     handleClickOn(_view, _pos, _node, _nodePos, event) {
@@ -905,21 +1176,51 @@ const editor = useEditor({
     },
   },
   onUpdate: ({ editor }) => {
-    const markdown = editor.storage.markdown.getMarkdown()
-    // 将 <url> 自动链接（prosemirror-markdown 在显示文本与 href 相同时输出为 <url>）转为 [url](url)
-    emit('update', markdown.replace(/<(https?:\/\/[^>\s]+)>/g, '[$1]($1)'))
+    if (isImeEditing()) {
+      imeDebug('tiptap onUpdate deferred', {
+        markdown: getEditorMarkdown(editor),
+      })
+      pendingImeUpdate = true
+      scheduleImeUpdate()
+      return
+    }
+    imeDebug('tiptap onUpdate emit', {
+      markdown: getEditorMarkdown(editor),
+    })
+    emitEditorUpdate(editor)
+  },
+  onTransaction: ({ editor, transaction }) => {
+    const activeCodeBlock = getActiveCodeBlockSnapshot(editor)?.codeBlock
+    if (!activeCodeBlock && !isImeEditing() && !transaction.docChanged) return
+
+    imeDebug('pm transaction', {
+      docChanged: transaction.docChanged,
+      selectionSet: transaction.selectionSet,
+      storedMarksSet: transaction.storedMarksSet,
+      viewComposing: (editor.view as any).composing,
+      meta: {
+        refreshLowlightAfterIme: transaction.getMeta(refreshLowlightAfterImeMeta),
+        composition: transaction.getMeta('composition'),
+        inputType: transaction.getMeta('inputType'),
+        uiEvent: transaction.getMeta('uiEvent'),
+      },
+      steps: transaction.steps.map((step: any) => ({
+        json: typeof step.toJSON === 'function' ? step.toJSON() : String(step),
+        from: step.from,
+        to: step.to,
+      })),
+      docText: editor.state.doc.textContent,
+    })
   }
 })
 
 // 获取规格化的 Markdown：将 <url> 自动链接转为 [url](url) 显式链接
 const getNormalizedMarkdown = (): string => {
-  if (!editor.value) return ''
-  const md = getNormalizedMarkdown()
-  return md.replace(/<(https?:\/\/[^>\s]+)>/g, '[$1]($1)')
+  return getEditorMarkdown()
 }
 
 watch(() => props.initialContent, (newContent) => {
-  if (editor.value && newContent !== getNormalizedMarkdown()) {
+  if (editor.value && !isImeEditing() && newContent !== getNormalizedMarkdown()) {
     editor.value.commands.setContent(newContent)
     // 切换笔记时滚动到顶部
     editor.value.view.dom.scrollTop = 0
@@ -1007,6 +1308,10 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  if (imeUpdateTimer) {
+    clearTimeout(imeUpdateTimer)
+    imeUpdateTimer = null
+  }
   editor.value?.destroy()
   // 清理编辑器 DOM 级别的右键选区保存
   if (editor.value && (editor.value.view.dom as any)._saveSelectionOnRightMousedown) {

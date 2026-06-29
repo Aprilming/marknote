@@ -5,6 +5,11 @@ import { Decoration, DecorationSet } from '@tiptap/pm/view'
 
 const codeBlockLanguageKey = new PluginKey('codeBlockLanguage')
 
+function selectionTouchesNode(from: number, to: number, nodeStart: number, nodeSize: number) {
+  const nodeEnd = nodeStart + nodeSize
+  return from >= nodeStart && to <= nodeEnd
+}
+
 // 常见编程语言列表
 export const PROGRAMMING_LANGUAGES = [
   { id: 'bash', name: 'bash', alias: ['shell', 'sh', 'zsh', 'bash'] },
@@ -75,9 +80,11 @@ export const CodeBlockLanguageExtension = Extension.create({
             const decorations: Decoration[] = []
 
             state.doc.forEach((node, offset) => {
-              // 空代码块（nodeSize===2，仅包含开闭标记）不放置 widget，
-              // 否则 contenteditable=false 会阻断文本插入
-              if (node.type.name === 'codeBlock' && node.nodeSize > 2) {
+              if (node.type.name === 'codeBlock') {
+                if (selectionTouchesNode(state.selection.from, state.selection.to, offset, node.nodeSize)) {
+                  return
+                }
+
                 // 获取当前语言
                 const currentLanguage = node.attrs.language || 'plaintext'
 
@@ -186,7 +193,7 @@ export const CodeBlockLanguageExtension = Extension.create({
 
                     return container
                   },
-                  { side: 1, key: `language-${offset}` }
+                  { side: 1, key: `language-${offset}`, ignoreSelection: true, relaxedSide: true }
                 )
 
                 decorations.push(langSelector)
