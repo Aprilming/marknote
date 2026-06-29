@@ -19,8 +19,14 @@ function updateToml(filePath, version) {
   fs.writeFileSync(filePath, content);
 }
 
+function normalizeVersion(version) {
+  return version.replace(/^v/, '');
+}
+
 // Main
-const version = readJson(path.join(rootDir, 'version.json')).version;
+const version = normalizeVersion(
+  process.env.APP_VERSION || process.argv[2] || readJson(path.join(rootDir, 'version.json')).version
+);
 
 const pkg = readJson(path.join(rootDir, 'package.json'));
 pkg.version = version;
