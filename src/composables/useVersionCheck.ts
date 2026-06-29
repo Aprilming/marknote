@@ -1,10 +1,23 @@
 import { ref } from 'vue'
+import { getVersion } from '@tauri-apps/api/app'
 import { check } from '@tauri-apps/plugin-updater'
 import { relaunch } from '@tauri-apps/plugin-process'
 import i18n from '../i18n'
 import packageJson from '../../package.json'
 
-const currentVersion = packageJson.version
+const currentVersion = ref(packageJson.version)
+let versionLoaded = false
+
+async function loadCurrentVersion(): Promise<void> {
+  if (versionLoaded) return
+  versionLoaded = true
+
+  try {
+    currentVersion.value = await getVersion()
+  } catch (error) {
+    console.warn('Failed to load app version from Tauri runtime:', error)
+  }
+}
 
 // 最新版本信息
 const latestVersion = ref<string | null>(null)
@@ -86,6 +99,8 @@ async function downloadAndInstall(): Promise<void> {
 }
 
 export function useVersionCheck() {
+  void loadCurrentVersion()
+
   return {
     currentVersion,
     latestVersion,
