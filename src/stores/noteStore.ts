@@ -26,20 +26,26 @@ export const useNoteStore = defineStore('note', () => {
   })
 
   // Getters
+  const activeNotes = computed(() => notes.value.filter(n => !n.trashedAt))
+
+  const trashedNotes = computed(() =>
+    notes.value.filter(n => n.trashedAt).sort((a, b) => (b.trashedAt ?? 0) - (a.trashedAt ?? 0))
+  )
+
   const currentNote = computed(() =>
-    notes.value.find(n => n.id === currentNoteId.value) ?? null
+    activeNotes.value.find(n => n.id === currentNoteId.value) ?? null
   )
 
   const currentIndex = computed(() =>
-    notes.value.findIndex(n => n.id === currentNoteId.value)
+    activeNotes.value.findIndex(n => n.id === currentNoteId.value)
   )
 
   /** 按 filterDirectoryId 过滤后的笔记列表 */
   const activeNoteList = computed(() => {
     if (filterDirectoryId.value === null) {
-      return notes.value.filter(n => !n.directoryId)
+      return activeNotes.value.filter(n => !n.directoryId)
     }
-    return notes.value.filter(n => n.directoryId === filterDirectoryId.value)
+    return activeNotes.value.filter(n => n.directoryId === filterDirectoryId.value)
   })
 
   /** 当前笔记在 activeNoteList 中的索引 */
@@ -48,9 +54,9 @@ export const useNoteStore = defineStore('note', () => {
   )
 
   const filteredNotes = computed(() => {
-    if (!searchQuery.value) return notes.value
+    if (!searchQuery.value) return activeNotes.value
     const query = searchQuery.value.toLowerCase()
-    return notes.value.filter(n =>
+    return activeNotes.value.filter(n =>
       n.title.toLowerCase().includes(query) ||
       n.content.toLowerCase().includes(query)
     )
@@ -164,6 +170,7 @@ export const useNoteStore = defineStore('note', () => {
           isLocked: item.isLocked,
           directoryId: item.directoryId,
           backgroundColor: item.backgroundColor,
+          trashedAt: item.trashedAt,
         })
       }
 
@@ -205,6 +212,7 @@ export const useNoteStore = defineStore('note', () => {
         isLocked: note.isLocked,
         directoryId: note.directoryId,
         backgroundColor: note.backgroundColor,
+        trashedAt: note.trashedAt,
       })),
     }
 
@@ -400,21 +408,55 @@ export const useNoteStore = defineStore('note', () => {
 
   async function deleteNote(id: string) {
     const note = notes.value.find(n => n.id === id)
-    if (note?.isLocked) {
+    if (note?.isLocked || note?.trashedAt) {
       return // Cannot delete locked note
     }
-    const index = notes.value.findIndex(n => n.id === id)
-    if (index !== -1) {
-      notes.value.splice(index, 1)
-
-      // Delete from iCloud
-      await deleteNoteFromCloud(id)
+    if (note) {
+      const oldActive = activeNoteList.value
+      const oldActiveIndex = oldActive.findIndex(n => n.id === id)
+      note.trashedAt = Date.now()
+      note.updatedAt = Date.now()
+      note.isPinned = false
+      await saveMetadataToCloud()
 
       // If deleted note was current, select the previous note (or first if at index 0)
       if (currentNoteId.value === id) {
-        const newIndex = Math.max(0, index - 1)
-        currentNoteId.value = notes.value[newIndex]?.id ?? null
+        const active = activeNoteList.value
+        const newIndex = Math.min(Math.max(0, oldActiveIndex - 1), active.length - 1)
+        currentNoteId.value = active[newIndex]?.id ?? null
       }
+    }
+  }
+
+  async function restoreNote(id: string): Promise<void> {
+    const note = notes.value.find(n => n.id === id)
+    if (!note?.trashedAt) return
+
+    const directoryStore = useDirectoryStore()
+    if (note.directoryId && !directoryStore.getDirectory(note.directoryId)) {
+      note.directoryId = undefined
+    }
+    note.trashedAt = undefined
+    note.updatedAt = Date.now()
+    await saveMetadataToCloud()
+  }
+
+  async function permanentlyDeleteNote(id: string): Promise<void> {
+    const index = notes.value.findIndex(n => n.id === id)
+    if (index === -1) return
+
+    notes.value.splice(index, 1)
+    await deleteNoteFromCloud(id)
+
+    if (currentNoteId.value === id) {
+      currentNoteId.value = activeNoteList.value[0]?.id ?? null
+    }
+  }
+
+  async function emptyTrash(): Promise<void> {
+    const ids = trashedNotes.value.map(n => n.id)
+    for (const id of ids) {
+      await permanentlyDeleteNote(id)
     }
   }
 
@@ -558,9 +600,9 @@ export const useNoteStore = defineStore('note', () => {
    */
   function getNotesByDirectory(directoryId: string | null): Note[] {
     if (directoryId === null) {
-      return notes.value.filter(n => !n.directoryId)
+      return activeNotes.value.filter(n => !n.directoryId)
     }
-    return notes.value.filter(n => n.directoryId === directoryId)
+    return activeNotes.value.filter(n => n.directoryId === directoryId)
   }
 
   /**
@@ -569,6 +611,7 @@ export const useNoteStore = defineStore('note', () => {
   async function moveNoteToDirectory(noteId: string, directoryId: string | null): Promise<void> {
     const note = notes.value.find(n => n.id === noteId)
     if (note) {
+      if (note.trashedAt) return
       const fromDir = note.directoryId ?? null
       const toDir = directoryId
       note.directoryId = directoryId || undefined
@@ -610,6 +653,8 @@ export const useNoteStore = defineStore('note', () => {
     currentIndex,
     activeNoteList,
     activeIndex,
+    activeNotes,
+    trashedNotes,
     filteredNotes,
     pinnedNotes,
     unpinnedNotes,
@@ -624,6 +669,9 @@ export const useNoteStore = defineStore('note', () => {
     createNoteWithContent,
     updateNote,
     deleteNote,
+    restoreNote,
+    permanentlyDeleteNote,
+    emptyTrash,
     togglePin,
     toggleLock,
     reorderNotes,

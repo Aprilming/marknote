@@ -8,7 +8,12 @@ import DirectoryTreeNode from './DirectoryTreeNode.vue'
 
 const props = defineProps<{
   highlightDirId?: string | null
+  isTrashSelected?: boolean
   onSelect?: (id: string | null) => void
+}>()
+
+const emit = defineEmits<{
+  (e: 'selectTrash'): void
 }>()
 
 const directoryStore = useDirectoryStore()
@@ -34,6 +39,7 @@ function getNoteCount(directoryId: string): number {
 }
 
 const rootNoteCount = computed(() => noteStore.getNotesByDirectory(null).length)
+const trashNoteCount = computed(() => noteStore.trashedNotes.length)
 
 function toggleExpand(id: string) {
   const next = new Set(expandedDirs.value)
@@ -48,6 +54,10 @@ function isExpanded(id: string): boolean {
 function selectDir(id: string | null) {
   directoryStore.selectDirectory(id)
   props.onSelect?.(id)
+}
+
+function selectTrash() {
+  emit('selectTrash')
 }
 
 function startCreate(parentId: string | null) {
@@ -191,9 +201,21 @@ provide('directoryTreeState', reactive({
       </div>
     </div>
 
-    <!-- 空状态 -->
     <div v-if="directoryStore.rootDirectories.length === 0 && creatingIn === undefined" class="tree-empty">
       {{ $t('dirTree.empty') }}
+    </div>
+
+    <div class="tree-footer">
+      <div
+        class="dir-item trash-item"
+        :class="{ selected: isTrashSelected }"
+        @click="selectTrash"
+      >
+        <span class="dir-toggle placeholder"></span>
+        <i class="i-mdi-delete-outline dir-icon"></i>
+        <span class="dir-name root-label">{{ $t('trash.title') }}</span>
+        <span class="dir-count">{{ trashNoteCount || '' }}</span>
+      </div>
     </div>
   </div>
 </template>
@@ -233,6 +255,21 @@ provide('directoryTreeState', reactive({
   flex: 1;
   overflow-y: auto;
   padding: 4px 0;
+}
+
+.tree-footer {
+  flex-shrink: 0;
+  padding: 8px 0 12px;
+  border-top: 1px solid var(--color-border);
+}
+
+.trash-item {
+  color: var(--color-danger, #ef4444);
+}
+
+.trash-item .dir-icon,
+.trash-item .dir-name {
+  color: inherit;
 }
 
 .tree-empty {

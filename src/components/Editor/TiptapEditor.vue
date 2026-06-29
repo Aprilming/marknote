@@ -2,6 +2,9 @@
 import { watch, watchEffect, onMounted, onUnmounted, ref, computed } from 'vue'
 import { useEditor, EditorContent, BubbleMenu } from '@tiptap/vue-3'
 import StarterKit from '@tiptap/starter-kit'
+import { Extension, getHTMLFromFragment } from '@tiptap/core'
+import { Paragraph } from '@tiptap/extension-paragraph'
+import { Heading } from '@tiptap/extension-heading'
 import { Markdown } from 'tiptap-markdown'
 import Placeholder from '@tiptap/extension-placeholder'
 import BubbleMenuExtension from '@tiptap/extension-bubble-menu'
@@ -19,6 +22,8 @@ import Highlight from '@tiptap/extension-highlight'
 import Underline from '@tiptap/extension-underline'
 import FontFamily from '@tiptap/extension-font-family'
 import Link from '@tiptap/extension-link'
+import { Fragment } from '@tiptap/pm/model'
+import { defaultMarkdownSerializer } from 'prosemirror-markdown'
 import { CodeBlockCopyExtension } from './extensions/CodeBlockCopyExtension'
 import { CodeBlockLanguageExtension } from './extensions/CodeBlockLanguageExtension'
 import { CodeBlockLowlightImeSafe, refreshLowlightAfterImeMeta } from './extensions/CodeBlockLowlightImeSafe'
@@ -39,6 +44,92 @@ const settingStore = useSettingStore()
 const assistantsStore = useAssistantsStore()
 const fileSystem = useFileSystem()
 const { t } = useI18n()
+
+type TextAlignValue = 'left' | 'center' | 'right'
+
+declare module '@tiptap/core' {
+  interface Commands<ReturnType> {
+    textAlign: {
+      setTextAlign: (alignment: TextAlignValue) => ReturnType
+    }
+  }
+}
+
+const alignedNodeTypes = ['paragraph', 'heading']
+
+const renderAlignedMarkdownBlock = (state: any, node: any, fallback: (state: any, node: any, parent: any, index: number) => void) => {
+  const textAlign = node.attrs.textAlign
+  if (!textAlign || textAlign === 'left') {
+    fallback(state, node, null, 0)
+    return
+  }
+
+  state.write(getHTMLFromFragment(Fragment.from(node), node.type.schema))
+  state.closeBlock(node)
+}
+
+const AlignedParagraph = Paragraph.extend({
+  addStorage() {
+    return {
+      markdown: {
+        serialize(state: any, node: any) {
+          renderAlignedMarkdownBlock(state, node, defaultMarkdownSerializer.nodes.paragraph)
+        },
+        parse: {},
+      },
+    }
+  },
+})
+
+const AlignedHeading = Heading.extend({
+  addStorage() {
+    return {
+      markdown: {
+        serialize(state: any, node: any) {
+          renderAlignedMarkdownBlock(state, node, defaultMarkdownSerializer.nodes.heading)
+        },
+        parse: {},
+      },
+    }
+  },
+})
+
+const TextAlign = Extension.create({
+  name: 'textAlign',
+
+  addGlobalAttributes() {
+    return [
+      {
+        types: alignedNodeTypes,
+        attributes: {
+          textAlign: {
+            default: null,
+            parseHTML: element => {
+              const value = element.style.textAlign
+              return value === 'center' || value === 'right' ? value : null
+            },
+            renderHTML: attributes => {
+              if (!attributes.textAlign || attributes.textAlign === 'left') {
+                return {}
+              }
+              return { style: `text-align: ${attributes.textAlign}` }
+            },
+          },
+        },
+      },
+    ]
+  },
+
+  addCommands() {
+    return {
+      setTextAlign: (alignment: TextAlignValue) => ({ commands }) => {
+        const textAlign = alignment === 'left' ? null : alignment
+        alignedNodeTypes.forEach(type => commands.updateAttributes(type, { textAlign }))
+        return true
+      },
+    }
+  },
+})
 
 // 动态加载代码高亮主题 CSS
 let currentHighlightCss: HTMLLinkElement | null = null
@@ -725,6 +816,8 @@ const editor = useEditor({
   extensions: [
     StarterKit.configure({
       codeBlock: false,
+      paragraph: false,
+      heading: false,
       bulletList: {
         keepMarks: true,
         keepAttributes: false,
@@ -734,6 +827,9 @@ const editor = useEditor({
         keepAttributes: false,
       },
     }),
+    AlignedParagraph,
+    AlignedHeading,
+    TextAlign,
     TaskList,
     TaskItem.configure({
       nested: true,
@@ -1378,121 +1474,153 @@ defineExpose({
       class="bubble-menu"
     >
       <!-- 文本格式 -->
-      <button @click="editor.chain().focus().toggleBold().run()"
-        :class="{ 'is-active': editor.isActive('bold') }" :data-tip="$t('editor.bold')"><b>B</b></button>
-      <button @click="editor.chain().focus().toggleItalic().run()"
-        :class="{ 'is-active': editor.isActive('italic') }" :data-tip="$t('editor.italic')"><i>I</i></button>
-      <button @click="editor.chain().focus().toggleUnderline().run()"
-        :class="{ 'is-active': editor.isActive('underline') }" :data-tip="$t('editor.underline')"><u>U</u></button>
-      <button @click="editor.chain().focus().toggleStrike().run()"
-        :class="{ 'is-active': editor.isActive('strike') }" :data-tip="$t('editor.strikethrough')"><s>S</s></button>
-      <button @click="editor.chain().focus().toggleCode().run()"
-        :class="{ 'is-active': editor.isActive('code') }" :data-tip="$t('editor.inlineCode')">&lt;/&gt;</button>
-      <button @click="editor.chain().focus().unsetAllMarks().run()"
-        :data-tip="$t('editor.clearFormat')" class="bm-clear-btn">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M5 5l14 14M5 19l7-7 7 7M5 5l7 7 7-7"/>
-        </svg>
-      </button>
+      <div class="bm-group">
+        <button @click="editor.chain().focus().toggleBold().run()"
+          :class="{ 'is-active': editor.isActive('bold') }" :data-tip="$t('editor.bold')"><b>B</b></button>
+        <button @click="editor.chain().focus().toggleItalic().run()"
+          :class="{ 'is-active': editor.isActive('italic') }" :data-tip="$t('editor.italic')"><i>I</i></button>
+        <button @click="editor.chain().focus().toggleUnderline().run()"
+          :class="{ 'is-active': editor.isActive('underline') }" :data-tip="$t('editor.underline')"><u>U</u></button>
+        <button @click="editor.chain().focus().toggleStrike().run()"
+          :class="{ 'is-active': editor.isActive('strike') }" :data-tip="$t('editor.strikethrough')"><s>S</s></button>
+        <button @click="editor.chain().focus().toggleCode().run()"
+          :class="{ 'is-active': editor.isActive('code') }" :data-tip="$t('editor.inlineCode')">&lt;/&gt;</button>
+        <button @click="editor.chain().focus().unsetAllMarks().run()"
+          :data-tip="$t('editor.clearFormat')" class="bm-clear-btn">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M5 5l14 14M5 19l7-7 7 7M5 5l7 7 7-7"/>
+          </svg>
+        </button>
+      </div>
 
       <div class="bm-sep" />
 
 
       <!-- 链接激活时：额外提供转纯文本 -->
-      <template v-if="editor.isActive('link')">
-        <button @click="convertLinkToPlainText" :data-tip="$t('editor.linkToPlainText')" class="bm-link-btn">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
-            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
-            <line x1="3" y1="3" x2="21" y2="21"/>
-          </svg>
-        </button>
-      </template>
+      <div class="bm-group">
+        <template v-if="editor.isActive('link')">
+          <button @click="convertLinkToPlainText" :data-tip="$t('editor.linkToPlainText')" class="bm-link-btn">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+              <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+              <line x1="3" y1="3" x2="21" y2="21"/>
+            </svg>
+          </button>
+        </template>
       <!-- 纯 URL 文本时：额外提供转 Markdown -->
-      <template v-else-if="isPlainUrl()">
-        <button @click="convertUrlToMarkdown" :data-tip="$t('editor.linkToMarkdown')" class="bm-link-btn">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="10"/><polyline points="8 12 12 16 16 12"/><line x1="12" y1="8" x2="12" y2="16"/>
-          </svg>
-        </button>
-      </template>
+        <template v-else-if="isPlainUrl()">
+          <button @click="convertUrlToMarkdown" :data-tip="$t('editor.linkToMarkdown')" class="bm-link-btn">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"/><polyline points="8 12 12 16 16 12"/><line x1="12" y1="8" x2="12" y2="16"/>
+            </svg>
+          </button>
+        </template>
+      </div>
 
       <div class="bm-sep" />
 
       <!-- 颜色 -->
-      <div class="bm-color-picker" :data-tip="$t('editor.textColor')">
-        <span class="bm-label" style="color: var(--color-popup-text, #e0e0e0);">A</span>
-        <input
-          type="color"
-          class="bm-color-input"
-          @input="(e) => editor?.chain().focus().setColor((e.target as HTMLInputElement).value).run()"
-        />
-      </div>
-      <div class="bm-color-picker" :data-tip="$t('editor.bgColor')">
-        <span class="bm-label" style="background: #ff0000; padding: 0 3px; border-radius: 2px; color: var(--color-popup-text, #e0e0e0);">A</span>
-        <input
-          type="color"
-          class="bm-color-input"
-          @input="(e) => editor?.chain().focus().setHighlight({ color: (e.target as HTMLInputElement).value }).run()"
-        />
+      <div class="bm-group">
+        <div class="bm-color-picker" :data-tip="$t('editor.textColor')">
+          <span class="bm-label" style="color: var(--color-popup-text, #e0e0e0);">A</span>
+          <input
+            type="color"
+            class="bm-color-input"
+            @input="(e) => editor?.chain().focus().setColor((e.target as HTMLInputElement).value).run()"
+          />
+        </div>
+        <div class="bm-color-picker" :data-tip="$t('editor.bgColor')">
+          <span class="bm-label" style="background: #ff0000; padding: 0 3px; border-radius: 2px; color: var(--color-popup-text, #e0e0e0);">A</span>
+          <input
+            type="color"
+            class="bm-color-input"
+            @input="(e) => editor?.chain().focus().setHighlight({ color: (e.target as HTMLInputElement).value }).run()"
+          />
+        </div>
       </div>
 
       <div class="bm-sep" />
 
       <!-- 标题 -->
-      <button @click="editor.chain().focus().toggleHeading({ level: 1 }).run()"
-        :class="{ 'is-active': editor.isActive('heading', { level: 1 }) }" :data-tip="$t('editor.heading1')">H1</button>
-      <button @click="editor.chain().focus().toggleHeading({ level: 2 }).run()"
-        :class="{ 'is-active': editor.isActive('heading', { level: 2 }) }" :data-tip="$t('editor.heading2')">H2</button>
-      <button @click="editor.chain().focus().toggleHeading({ level: 3 }).run()"
-        :class="{ 'is-active': editor.isActive('heading', { level: 3 }) }" :data-tip="$t('editor.heading3')">H3</button>
+      <div class="bm-group">
+        <button @click="editor.chain().focus().toggleHeading({ level: 1 }).run()"
+          :class="{ 'is-active': editor.isActive('heading', { level: 1 }) }" :data-tip="$t('editor.heading1')">H1</button>
+        <button @click="editor.chain().focus().toggleHeading({ level: 2 }).run()"
+          :class="{ 'is-active': editor.isActive('heading', { level: 2 }) }" :data-tip="$t('editor.heading2')">H2</button>
+        <button @click="editor.chain().focus().toggleHeading({ level: 3 }).run()"
+          :class="{ 'is-active': editor.isActive('heading', { level: 3 }) }" :data-tip="$t('editor.heading3')">H3</button>
+      </div>
+
+      <div class="bm-sep" />
+
+      <!-- 对齐 -->
+      <div class="bm-group">
+        <button @click="editor.chain().focus().setTextAlign('left').run()"
+          :class="{ 'is-active': !editor.isActive({ textAlign: 'center' }) && !editor.isActive({ textAlign: 'right' }) }" :data-tip="$t('editor.alignLeft')">
+          <i class="i-mdi-format-align-left"></i>
+        </button>
+        <button @click="editor.chain().focus().setTextAlign('center').run()"
+          :class="{ 'is-active': editor.isActive({ textAlign: 'center' }) }" :data-tip="$t('editor.alignCenter')">
+          <i class="i-mdi-format-align-center"></i>
+        </button>
+        <button @click="editor.chain().focus().setTextAlign('right').run()"
+          :class="{ 'is-active': editor.isActive({ textAlign: 'right' }) }" :data-tip="$t('editor.alignRight')">
+          <i class="i-mdi-format-align-right"></i>
+        </button>
+      </div>
 
       <div class="bm-sep" />
 
       <!-- 列表 -->
-      <button @click="editor.chain().focus().toggleBulletList().run()"
-        :class="{ 'is-active': editor.isActive('bulletList') }" :data-tip="$t('editor.bulletList')">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/>
-        </svg>
-      </button>
-      <button @click="editor.chain().focus().toggleOrderedList().run()"
-        :class="{ 'is-active': editor.isActive('orderedList') }" :data-tip="$t('editor.orderedList')">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="9" y1="6" x2="21" y2="6"/><line x1="9" y1="12" x2="21" y2="12"/><line x1="9" y1="18" x2="21" y2="18"/><path d="M4 6h1v4"/><path d="M4 10h2"/><path d="M6 18H4c0-1 2-2 2-3s-1-1.5-2-1"/>
-        </svg>
-      </button>
-      <button @click="editor.chain().focus().toggleTaskList().run()"
-        :class="{ 'is-active': editor.isActive('taskList') }" :data-tip="$t('editor.taskList')">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
-        </svg>
-      </button>
+      <div class="bm-group">
+        <button @click="editor.chain().focus().toggleBulletList().run()"
+          :class="{ 'is-active': editor.isActive('bulletList') }" :data-tip="$t('editor.bulletList')">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/>
+          </svg>
+        </button>
+        <button @click="editor.chain().focus().toggleOrderedList().run()"
+          :class="{ 'is-active': editor.isActive('orderedList') }" :data-tip="$t('editor.orderedList')">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="9" y1="6" x2="21" y2="6"/><line x1="9" y1="12" x2="21" y2="12"/><line x1="9" y1="18" x2="21" y2="18"/><path d="M4 6h1v4"/><path d="M4 10h2"/><path d="M6 18H4c0-1 2-2 2-3s-1-1.5-2-1"/>
+          </svg>
+        </button>
+        <button @click="editor.chain().focus().toggleTaskList().run()"
+          :class="{ 'is-active': editor.isActive('taskList') }" :data-tip="$t('editor.taskList')">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+          </svg>
+        </button>
+      </div>
 
       <div class="bm-sep" />
 
       <!-- 块级元素 -->
-      <button @click="editor.chain().focus().toggleBlockquote().run()"
-        :class="{ 'is-active': editor.isActive('blockquote') }" :data-tip="$t('editor.blockquote')">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" stroke="none">
-          <path d="M6 17h3l2-4V7H5v6h3zm8 0h3l2-4V7h-6v6h3z"/>
-        </svg>
-      </button>
-      <button @click="editor.chain().focus().toggleCodeBlock().run()"
-        :class="{ 'is-active': editor.isActive('codeBlock') }" :data-tip="$t('editor.codeBlock')">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-          <polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>
-        </svg>
-      </button>
-      <button @click="editor.chain().focus().setHorizontalRule().run()"
-        :data-tip="$t('editor.horizontalRule')">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
-          <line x1="3" y1="12" x2="21" y2="12"/>
-        </svg>
-      </button>
+      <div class="bm-group">
+        <button @click="editor.chain().focus().toggleBlockquote().run()"
+          :class="{ 'is-active': editor.isActive('blockquote') }" :data-tip="$t('editor.blockquote')">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+            <path d="M6 17h3l2-4V7H5v6h3zm8 0h3l2-4V7h-6v6h3z"/>
+          </svg>
+        </button>
+        <button @click="editor.chain().focus().toggleCodeBlock().run()"
+          :class="{ 'is-active': editor.isActive('codeBlock') }" :data-tip="$t('editor.codeBlock')">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>
+          </svg>
+        </button>
+        <button @click="editor.chain().focus().setHorizontalRule().run()"
+          :data-tip="$t('editor.horizontalRule')">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+            <line x1="3" y1="12" x2="21" y2="12"/>
+          </svg>
+        </button>
+      </div>
       <div class="bm-sep" />
-      <button @click="editor.chain().focus().setParagraph().run()"
-        :class="{ 'is-active': editor.isActive('paragraph') }" :data-tip="$t('editor.paragraph')"><span style="font-size:10px">¶</span></button>
+      <div class="bm-group">
+        <button @click="editor.chain().focus().setParagraph().run()"
+          :class="{ 'is-active': editor.isActive('paragraph') }" :data-tip="$t('editor.paragraph')"><span style="font-size:10px">¶</span></button>
+      </div>
     </BubbleMenu>
     <!-- 右键菜单 -->
     <Teleport to="body">
@@ -1596,7 +1724,20 @@ defineExpose({
   max-width: min(95vw, 600px);
 }
 
+.bm-group {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+}
+
+.bm-group:empty {
+  display: none;
+}
+
 .bubble-menu button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   padding: 3px 4px;
   border: none;
   background: transparent;
@@ -1607,6 +1748,8 @@ defineExpose({
   font-weight: bold;
   line-height: 1;
   white-space: nowrap;
+  min-width: 22px;
+  min-height: 22px;
 }
 
 .bubble-menu button:hover {
@@ -1620,6 +1763,12 @@ defineExpose({
 
 .bubble-menu button svg {
   display: block;
+}
+
+.bubble-menu button i {
+  display: block;
+  width: 15px;
+  height: 15px;
 }
 
 .bm-clear-btn:hover {

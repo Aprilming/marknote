@@ -14,6 +14,7 @@ const directoryStore = useDirectoryStore()
 const { t, locale } = useI18n()
 const searchInput = ref<HTMLInputElement | null>(null)
 const localQuery = ref('')
+const isTrashView = ref(false)
 
 // 拖拽状态
 const isDragging = ref(false)
@@ -27,8 +28,8 @@ const isSearching = computed(() => localQuery.value.trim().length > 0)
 
 // 筛选后的搜索结果
 const searchResults = computed(() => {
-  let results = noteStore.notes
-  if (!isSearching.value) {
+  let results = isTrashView.value ? noteStore.trashedNotes : noteStore.activeNotes
+  if (!isSearching.value && !isTrashView.value) {
     results = noteStore.getNotesByDirectory(directoryStore.currentDirectoryId)
   }
   if (localQuery.value) {
@@ -42,6 +43,7 @@ const searchResults = computed(() => {
 
 // 当前目录名称
 const currentDirName = computed(() => {
+  if (isTrashView.value) return t('trash.title')
   if (directoryStore.currentDirectoryId === null) return t('dirTree.rootDir')
   return directoryStore.getDirectory(directoryStore.currentDirectoryId)?.name ?? t('dirTree.rootDir')
 })
@@ -49,6 +51,7 @@ const currentDirName = computed(() => {
 // ---- Pointer event handlers (document-level) ----
 
 function onNotePointerDown(e: PointerEvent, noteId: string) {
+  if (isTrashView.value) return
   draggedNoteId.value = noteId
   dragStartPos.value = { x: e.clientX, y: e.clientY }
   isDragging.value = false
@@ -181,6 +184,33 @@ function handleCancel() {
   emit('close')
 }
 
+function handleSelectDirectory() {
+  isTrashView.value = false
+}
+
+function handleSelectTrash() {
+  isTrashView.value = true
+  localQuery.value = ''
+  resetDrag()
+}
+
+async function handleRestore(noteId: string) {
+  await noteStore.restoreNote(noteId)
+}
+
+async function handlePermanentDelete(noteId: string) {
+  if (confirm(t('trash.deleteConfirm'))) {
+    await noteStore.permanentlyDeleteNote(noteId)
+  }
+}
+
+async function handleEmptyTrash() {
+  if (noteStore.trashedNotes.length === 0) return
+  if (confirm(t('trash.emptyConfirm', { count: noteStore.trashedNotes.length }))) {
+    await noteStore.emptyTrash()
+  }
+}
+
 onMounted(() => {
   searchInput.value?.focus()
   document.addEventListener('keydown', handleKeydown)
@@ -224,20 +254,34 @@ function handleKeydown(e: KeyboardEvent) {
     <div class="search-body">
       <!-- 左侧目录树 -->
       <div class="search-sidebar">
-        <DirectoryTree :highlight-dir-id="isDragging ? dragOverDirId : undefined" />
+        <DirectoryTree
+          :highlight-dir-id="isDragging ? dragOverDirId : undefined"
+          :is-trash-selected="isTrashView"
+          :on-select="handleSelectDirectory"
+          @select-trash="handleSelectTrash"
+        />
       </div>
 
       <!-- 右侧笔记列表 -->
       <div class="search-main">
         <div class="dir-title">
-          <i class="i-mdi-folder-outline"></i>
+          <i v-if="isTrashView" class="i-mdi-delete-outline"></i>
+          <i v-else class="i-mdi-folder-outline"></i>
           <span>{{ currentDirName }}</span>
           <span class="dir-title-count">{{ $t('search.noteCount', { count: searchResults.length }) }}</span>
+          <button
+            v-if="isTrashView && noteStore.trashedNotes.length > 0"
+            class="empty-trash-btn"
+            @click="handleEmptyTrash"
+          >
+            {{ $t('trash.empty') }}
+          </button>
         </div>
 
         <div class="search-results">
           <div v-if="searchResults.length === 0" class="no-results">
             <template v-if="localQuery">{{ $t('search.noMatch') }}</template>
+            <template v-else-if="isTrashView">{{ $t('trash.emptyState') }}</template>
             <template v-else-if="directoryStore.currentDirectoryId === null">{{ $t('search.emptyNotes') }}</template>
             <template v-else>{{ $t('search.emptyDir') }}</template>
           </div>
@@ -260,6 +304,16 @@ function handleKeydown(e: KeyboardEvent) {
               <div class="result-date">{{ formatDate(note.updatedAt) }}</div>
             </div>
             <div class="result-preview" v-html="highlightKeyword(getPreview(note.content), localQuery)"></div>
+            <div v-if="isTrashView" class="trash-actions" @pointerdown.stop>
+              <button class="trash-action-btn restore" @click.stop="handleRestore(note.id)">
+                <i class="i-mdi-restore"></i>
+                <span>{{ $t('trash.restore') }}</span>
+              </button>
+              <button class="trash-action-btn delete" @click.stop="handlePermanentDelete(note.id)">
+                <i class="i-mdi-delete-forever-outline"></i>
+                <span>{{ $t('trash.delete') }}</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -382,6 +436,21 @@ function handleKeydown(e: KeyboardEvent) {
   margin-left: 4px;
 }
 
+.empty-trash-btn {
+  margin-left: auto;
+  padding: 4px 8px;
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-danger, #ef4444);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.empty-trash-btn:hover {
+  background: rgba(239, 68, 68, 0.1);
+}
+
 .search-results {
   flex: 1;
   overflow-y: auto;
@@ -453,6 +522,42 @@ function handleKeydown(e: KeyboardEvent) {
   font-size: 13px;
   color: var(--color-text-secondary);
   line-height: 1.4;
+}
+
+.trash-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.trash-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 26px;
+  padding: 0 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.trash-action-btn i {
+  font-size: 14px;
+}
+
+.trash-action-btn.restore {
+  color: var(--color-primary);
+}
+
+.trash-action-btn.delete {
+  color: var(--color-danger, #ef4444);
+}
+
+.trash-action-btn:hover {
+  background: rgba(128, 128, 128, 0.12);
 }
 
 .result-item :deep(mark) {

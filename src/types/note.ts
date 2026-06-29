@@ -12,6 +12,7 @@ export interface Note {
   isLocked: boolean // Whether the note is locked (cannot edit or delete)
   directoryId?: string // null/undefined = root directory
   backgroundColor?: string // Optional background color for the note
+  trashedAt?: number // Unix timestamp when moved to trash
 }
 
 /**
@@ -32,6 +33,7 @@ export interface NoteMetadataItem {
   isLocked: boolean
   directoryId?: string
   backgroundColor?: string
+  trashedAt?: number
 }
 
 /**
