@@ -588,7 +588,7 @@ function handleToggleSourceMode() {
       <!-- 目录选择器弹出 -->
       <div v-if="dirPickerVisible" class="dir-picker-overlay" @click="dirPickerVisible = false">
         <div class="dir-picker-popup" @click.stop>
-          <DirectoryTree :on-select="handleDirSelect" />
+          <DirectoryTree :on-select="handleDirSelect" :show-trash="false" />
         </div>
       </div>
 

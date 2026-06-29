@@ -55,6 +55,9 @@ static DISPLAY_APP_HANDLE: OnceLock<AppHandle> = OnceLock::new();
 #[allow(non_upper_case_globals)]
 const kCGDisplayBeginConfiguration: u32 = 1 << 0;
 
+#[cfg(target_os = "macos")]
+const NS_WINDOW_COLLECTION_BEHAVIOR_FULL_SCREEN_AUXILIARY: usize = 1 << 8;
+
 /// 全局快捷键状态
 struct GlobalShortcutState {
     current_shortcut: Mutex<Option<Shortcut>>,
@@ -382,7 +385,7 @@ fn show_window_current_space_impl(app: &AppHandle) {
         unsafe {
             let level = CGShieldingWindowLevel();
             let _: () = msg_send![ns_window_ptr, setLevel: level as i64];
-            let _: () = msg_send![ns_window_ptr, setCollectionBehavior: 769usize];
+            let _: () = msg_send![ns_window_ptr, setCollectionBehavior: NS_WINDOW_COLLECTION_BEHAVIOR_FULL_SCREEN_AUXILIARY];
             let _: () = msg_send![ns_window_ptr, orderFrontRegardless];
             let _: () = msg_send![ns_window_ptr, setAlphaValue: restore_alpha];
         }
@@ -984,13 +987,13 @@ pub fn run() {
                     Some(12.0),
                 ).expect("vibrancy failed");
 
-                // 窗口在所有 Space 上可见（包括全屏 Space）
+                // 窗口可作为全屏 Space 的辅助窗口，具体显示在哪个 Space 由唤起时的 CGSAddWindowsToSpaces 决定
                 let ns_window = window.ns_window().unwrap() as id;
                 let ns_window_ptr = ns_window as *mut objc2::runtime::AnyObject;
                 unsafe {
                     let level = CGShieldingWindowLevel();
                     let _: () = msg_send![ns_window_ptr, setLevel: level as i64];
-                    let _: () = msg_send![ns_window_ptr, setCollectionBehavior: 769usize];
+                    let _: () = msg_send![ns_window_ptr, setCollectionBehavior: NS_WINDOW_COLLECTION_BEHAVIOR_FULL_SCREEN_AUXILIARY];
                 }
 
                 // 如果是开机自启启动，立即隐藏窗口，等待快捷键唤起

@@ -176,13 +176,13 @@ export default {
   'search.daysAgo': '{n}天前',
   'search.monthDay': '{month}月{day}日',
 
-  'trash.title': '垃圾桶',
+  'trash.title': '回收站',
   'trash.empty': '清空',
   'trash.restore': '还原',
   'trash.delete': '删除',
-  'trash.emptyState': '垃圾桶是空的',
+  'trash.emptyState': '回收站是空的',
   'trash.deleteConfirm': '彻底删除这篇笔记？此操作无法撤销。',
-  'trash.emptyConfirm': '彻底删除垃圾桶中的 {count} 篇笔记？此操作无法撤销。',
+  'trash.emptyConfirm': '彻底删除回收站中的 {count} 篇笔记？此操作无法撤销。',
 
   'dirTree.title': '目录',
   'dirTree.newDir': '新建目录',

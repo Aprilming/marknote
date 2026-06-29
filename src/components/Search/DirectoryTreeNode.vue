@@ -12,6 +12,7 @@ interface TreeState {
   newDirName: string
   renameValue: string
   highlightDirId?: string | null
+  isDirDragging: boolean
   selectDir: (id: string | null) => void
   toggleExpand: (id: string) => void
   isExpanded: (id: string) => boolean
@@ -24,6 +25,8 @@ interface TreeState {
   cancelRename: () => void
   handleDelete: (id: string, e: MouseEvent) => void
   selectInputContent: (el: HTMLInputElement | null) => void
+  onDirPointerDown: (e: PointerEvent, id: string) => void
+  getDirDropClass: (id: string) => Record<string, boolean>
 }
 
 const props = defineProps<{
@@ -42,18 +45,23 @@ const children = computed(() => directoryStore.getChildren(props.directory.id))
   <div class="dir-wrapper">
     <div
       class="dir-item"
-      :class="{
-        selected: treeState.selectedDirId === directory.id,
-        'drag-over': treeState.highlightDirId === directory.id
-      }"
+      :class="[
+        {
+          selected: treeState.selectedDirId === directory.id,
+          'drop-into': !treeState.isDirDragging && treeState.highlightDirId === directory.id
+        },
+        treeState.getDirDropClass(directory.id)
+      ]"
       :data-dir-id="directory.id"
       :style="{ paddingLeft: 12 + depth * 16 + 'px' }"
+      @pointerdown="treeState.onDirPointerDown($event, directory.id)"
       @click="treeState.selectDir(directory.id)"
       @dblclick="treeState.startRename(directory)"
     >
       <span
         v-if="children.length > 0"
         class="dir-toggle"
+        @pointerdown.stop
         @click.stop="treeState.toggleExpand(directory.id)"
       >
         <i class="i-mdi-chevron-right" :class="{ expanded: treeState.isExpanded(directory.id) }"></i>
@@ -70,6 +78,7 @@ const children = computed(() => directoryStore.getChildren(props.directory.id))
           @keydown.enter="treeState.confirmRename"
           @keydown.escape="treeState.cancelRename"
           @click.stop
+          @pointerdown.stop
           :ref="(el: any) => treeState.selectInputContent(el as HTMLInputElement)"
           autofocus
         />
@@ -80,7 +89,7 @@ const children = computed(() => directoryStore.getChildren(props.directory.id))
 
       <span class="dir-count">{{ treeState.getNoteCount(directory.id) || '' }}</span>
 
-      <span class="dir-actions">
+      <span class="dir-actions" @pointerdown.stop>
         <i class="i-mdi-plus" :title="$t('dirTree.newSubdir')" @click.stop="treeState.startCreate(directory.id)"></i>
         <i class="i-mdi-pencil" :title="$t('dirTree.rename')" @click.stop="treeState.startRename(directory)"></i>
         <i class="i-mdi-delete" :title="$t('common.delete')" @click.stop="(e: MouseEvent) => treeState.handleDelete(directory.id, e)"></i>

@@ -1,16 +1,19 @@
 <script setup lang="ts">
-import { ref, computed, provide, reactive } from 'vue'
+import { ref, computed, provide, reactive, onMounted, onUnmounted } from 'vue'
 import { useDirectoryStore } from '@/stores/directoryStore'
 import { useNoteStore } from '@/stores/noteStore'
 import { useI18n } from 'vue-i18n'
 import type { Directory } from '@/types/note'
 import DirectoryTreeNode from './DirectoryTreeNode.vue'
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   highlightDirId?: string | null
   isTrashSelected?: boolean
+  showTrash?: boolean
   onSelect?: (id: string | null) => void
-}>()
+}>(), {
+  showTrash: true,
+})
 
 const emit = defineEmits<{
   (e: 'selectTrash'): void
@@ -31,6 +34,15 @@ const renameValue = ref('')
 // 展开/折叠状态
 const expandedDirs = ref<Set<string>>(new Set())
 
+type DirectoryDropPosition = 'inside' | 'before' | 'after'
+
+// 目录拖拽状态
+const draggedDirId = ref<string | null>(null)
+const isDirDragging = ref(false)
+const dragStartPos = ref({ x: 0, y: 0 })
+const dragOverDirId = ref<string | null | undefined>(undefined)
+const dragDropPosition = ref<DirectoryDropPosition>('inside')
+
 // 选中的目录
 const selectedDirId = computed(() => directoryStore.currentDirectoryId)
 
@@ -40,6 +52,7 @@ function getNoteCount(directoryId: string): number {
 
 const rootNoteCount = computed(() => noteStore.getNotesByDirectory(null).length)
 const trashNoteCount = computed(() => noteStore.trashedNotes.length)
+const shouldShowTrash = computed(() => props.showTrash !== false)
 
 function toggleExpand(id: string) {
   const next = new Set(expandedDirs.value)
@@ -130,7 +143,126 @@ function selectInputContent(el: HTMLInputElement | null) {
   el?.select()
 }
 
-const highlightDirId = computed(() => props.highlightDirId)
+const effectiveHighlightDirId = computed(() => isDirDragging.value ? dragOverDirId.value : props.highlightDirId)
+
+function onDirPointerDown(e: PointerEvent, id: string) {
+  if (renamingId.value === id) return
+  draggedDirId.value = id
+  dragStartPos.value = { x: e.clientX, y: e.clientY }
+  isDirDragging.value = false
+  dragOverDirId.value = undefined
+  dragDropPosition.value = 'inside'
+}
+
+function onDocPointerMove(e: PointerEvent) {
+  if (!draggedDirId.value) return
+
+  if (!isDirDragging.value) {
+    const dx = Math.abs(e.clientX - dragStartPos.value.x)
+    const dy = Math.abs(e.clientY - dragStartPos.value.y)
+    if (dx <= 8 && dy <= 8) return
+    isDirDragging.value = true
+  }
+
+  e.preventDefault()
+
+  const dirEl = document.elementsFromPoint(e.clientX, e.clientY)
+    .map(el => (el as HTMLElement).closest('[data-dir-id]') as HTMLElement | null)
+    .find((el): el is HTMLElement => !!el)
+
+  if (!dirEl) {
+    dragOverDirId.value = undefined
+    return
+  }
+
+  const raw = dirEl.getAttribute('data-dir-id')
+  const targetId = raw === 'root' ? null : raw
+  if (targetId === draggedDirId.value) {
+    dragOverDirId.value = undefined
+    return
+  }
+
+  if (targetId && directoryStore.isDescendantOf(targetId, draggedDirId.value)) {
+    dragOverDirId.value = undefined
+    return
+  }
+
+  dragOverDirId.value = targetId
+
+  if (targetId === null) {
+    dragDropPosition.value = 'inside'
+    return
+  }
+
+  const rect = dirEl.getBoundingClientRect()
+  const y = e.clientY - rect.top
+  const edgeSize = Math.max(6, rect.height * 0.25)
+  if (y < edgeSize) {
+    dragDropPosition.value = 'before'
+  } else if (y > rect.height - edgeSize) {
+    dragDropPosition.value = 'after'
+  } else {
+    dragDropPosition.value = 'inside'
+  }
+}
+
+async function onDocPointerUp() {
+  if (!draggedDirId.value) return
+
+  const sourceId = draggedDirId.value
+  const targetId = dragOverDirId.value
+  const position = dragDropPosition.value
+  const wasDragging = isDirDragging.value
+  resetDirectoryDrag()
+
+  if (!wasDragging || targetId === undefined) return
+
+  if (targetId === null) {
+    await directoryStore.moveDirectory(sourceId, null)
+    return
+  }
+
+  if (position === 'inside') {
+    await directoryStore.moveDirectory(sourceId, targetId)
+    const next = new Set(expandedDirs.value)
+    next.add(targetId)
+    expandedDirs.value = next
+    return
+  }
+
+  const target = directoryStore.getDirectory(targetId)
+  if (target) {
+    await directoryStore.moveDirectory(sourceId, target.parentId, position, targetId)
+  }
+}
+
+function resetDirectoryDrag() {
+  draggedDirId.value = null
+  isDirDragging.value = false
+  dragOverDirId.value = undefined
+  dragDropPosition.value = 'inside'
+}
+
+function getDirDropClass(id: string): Record<string, boolean> {
+  const isTarget = isDirDragging.value && dragOverDirId.value === id
+  return {
+    'is-dir-dragging': draggedDirId.value === id,
+    'drop-into': isTarget && dragDropPosition.value === 'inside',
+    'drag-over-before': isTarget && dragDropPosition.value === 'before',
+    'drag-over-after': isTarget && dragDropPosition.value === 'after',
+  }
+}
+
+onMounted(() => {
+  document.addEventListener('pointermove', onDocPointerMove)
+  document.addEventListener('pointerup', onDocPointerUp)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('pointermove', onDocPointerMove)
+  document.removeEventListener('pointerup', onDocPointerUp)
+  resetDirectoryDrag()
+})
 
 // 通过 provide 向递归子组件共享状态和方法
 // 使用 reactive 包裹以使 ref 自动解包，子组件中的 v-model 和条件判断才能正常工作
@@ -141,7 +273,11 @@ provide('directoryTreeState', reactive({
   expandedDirs,
   newDirName,
   renameValue,
-  highlightDirId,
+  highlightDirId: effectiveHighlightDirId,
+  draggedDirId,
+  isDirDragging,
+  dragOverDirId,
+  dragDropPosition,
   selectDir,
   toggleExpand,
   isExpanded,
@@ -154,6 +290,8 @@ provide('directoryTreeState', reactive({
   cancelRename,
   handleDelete,
   selectInputContent,
+  onDirPointerDown,
+  getDirDropClass,
 }))
 </script>
 
@@ -168,7 +306,7 @@ provide('directoryTreeState', reactive({
       <!-- 根目录 -->
       <div
         class="dir-item"
-        :class="{ selected: selectedDirId === null, 'drag-over': highlightDirId === null }"
+        :class="{ selected: selectedDirId === null, 'drop-into': effectiveHighlightDirId === null }"
         data-dir-id="root"
         @click="selectDir(null)"
       >
@@ -205,7 +343,7 @@ provide('directoryTreeState', reactive({
       {{ $t('dirTree.empty') }}
     </div>
 
-    <div class="tree-footer">
+    <div v-if="shouldShowTrash" class="tree-footer">
       <div
         class="dir-item trash-item"
         :class="{ selected: isTrashSelected }"
@@ -320,17 +458,72 @@ provide('directoryTreeState', reactive({
   color: white;
 }
 
-.dir-item.drag-over {
-  background: var(--color-primary);
-  opacity: 0.7;
-  outline: 2px dashed rgba(255, 255, 255, 0.6);
-  outline-offset: -2px;
+.dir-item.drop-into {
+  background: color-mix(in srgb, var(--color-primary) 14%, transparent);
+  color: var(--color-primary);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-primary) 42%, transparent);
 }
 
-.dir-item.drag-over .dir-name,
-.dir-item.drag-over .dir-icon,
-.dir-item.drag-over .dir-count {
-  color: white;
+.dir-item.drop-into::before {
+  content: '';
+  position: absolute;
+  inset: 3px 6px;
+  border: 1px dashed color-mix(in srgb, var(--color-primary) 58%, transparent);
+  border-radius: 6px;
+  pointer-events: none;
+}
+
+.dir-item.is-dir-dragging {
+  opacity: 0.45;
+}
+
+.dir-item.drag-over-before::before,
+.dir-item.drag-over-after::after {
+  content: '';
+  position: absolute;
+  left: 22px;
+  right: 14px;
+  height: 3px;
+  background: var(--color-primary);
+  border-radius: 999px;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-primary) 16%, transparent);
+  pointer-events: none;
+}
+
+.dir-item.drag-over-before::after,
+.dir-item.drag-over-after::before {
+  content: '';
+  position: absolute;
+  left: 12px;
+  width: 8px;
+  height: 8px;
+  border: 2px solid var(--color-primary);
+  border-radius: 50%;
+  background: var(--color-background);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.dir-item.drag-over-before::before {
+  top: -2px;
+}
+
+.dir-item.drag-over-before::after {
+  top: -5px;
+}
+
+.dir-item.drag-over-after::after {
+  bottom: -2px;
+}
+
+.dir-item.drag-over-after::before {
+  bottom: -5px;
+}
+
+.dir-item.drop-into .dir-name,
+.dir-item.drop-into .dir-icon,
+.dir-item.drop-into .dir-count {
+  color: var(--color-primary);
 }
 
 .dir-toggle {

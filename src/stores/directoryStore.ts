@@ -94,13 +94,48 @@ export const useDirectoryStore = defineStore('directory', () => {
     }
   }
 
-  async function moveDirectory(id: string, newParentId: string | null): Promise<void> {
-    const dir = directories.value.find(d => d.id === id)
-    if (dir) {
-      dir.parentId = newParentId
-      dir.updatedAt = Date.now()
-      await saveDirectories()
+  function isDescendantOf(id: string, possibleAncestorId: string): boolean {
+    let dir = directories.value.find(d => d.id === id)
+    while (dir?.parentId) {
+      if (dir.parentId === possibleAncestorId) return true
+      dir = directories.value.find(d => d.id === dir?.parentId)
     }
+    return false
+  }
+
+  async function moveDirectory(
+    id: string,
+    newParentId: string | null,
+    position: 'inside' | 'before' | 'after' = 'inside',
+    referenceId?: string
+  ): Promise<void> {
+    const dir = directories.value.find(d => d.id === id)
+    if (!dir) return
+    if (newParentId === id || (newParentId && isDescendantOf(newParentId, id))) return
+
+    if (position !== 'inside' && referenceId) {
+      const reference = directories.value.find(d => d.id === referenceId)
+      if (!reference || reference.id === id || isDescendantOf(reference.id, id)) return
+      newParentId = reference.parentId
+    }
+
+    const nextDirectories = directories.value.filter(d => d.id !== id)
+    dir.parentId = newParentId
+    dir.updatedAt = Date.now()
+
+    if (position !== 'inside' && referenceId) {
+      const referenceIndex = nextDirectories.findIndex(d => d.id === referenceId)
+      if (referenceIndex !== -1) {
+        nextDirectories.splice(position === 'before' ? referenceIndex : referenceIndex + 1, 0, dir)
+        directories.value = nextDirectories
+        await saveDirectories()
+        return
+      }
+    }
+
+    nextDirectories.push(dir)
+    directories.value = nextDirectories
+    await saveDirectories()
   }
 
   async function deleteDirectory(id: string): Promise<void> {
@@ -143,6 +178,7 @@ export const useDirectoryStore = defineStore('directory', () => {
     rootDirectories,
     getChildren,
     getDirectory,
+    isDescendantOf,
     loadDirectories,
     saveDirectories,
     restoreLastDirectory,

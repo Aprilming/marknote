@@ -257,6 +257,7 @@ function handleKeydown(e: KeyboardEvent) {
         <DirectoryTree
           :highlight-dir-id="isDragging ? dragOverDirId : undefined"
           :is-trash-selected="isTrashView"
+          :show-trash="true"
           :on-select="handleSelectDirectory"
           @select-trash="handleSelectTrash"
         />
