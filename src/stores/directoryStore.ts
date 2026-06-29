@@ -46,6 +46,31 @@ export const useDirectoryStore = defineStore('directory', () => {
     return directories.value.find(d => d.id === id)
   }
 
+  function getFlattenedDirectoryIds(): (string | null)[] {
+    const ids: (string | null)[] = [null]
+
+    function appendChildren(parentId: string | null) {
+      for (const dir of directories.value.filter(d => d.parentId === parentId)) {
+        ids.push(dir.id)
+        appendChildren(dir.id)
+      }
+    }
+
+    appendChildren(null)
+    return ids
+  }
+
+  function getAdjacentDirectoryId(direction: 'prev' | 'next'): string | null {
+    const ids = getFlattenedDirectoryIds()
+    const currentIndex = ids.findIndex(id => id === currentDirectoryId.value)
+    const index = currentIndex === -1 ? 0 : currentIndex
+    const nextIndex = direction === 'prev'
+      ? Math.max(0, index - 1)
+      : Math.min(ids.length - 1, index + 1)
+
+    return ids[nextIndex] ?? null
+  }
+
   // Actions
   async function loadDirectories(): Promise<void> {
     if (isLoading.value) return
@@ -178,6 +203,8 @@ export const useDirectoryStore = defineStore('directory', () => {
     rootDirectories,
     getChildren,
     getDirectory,
+    getFlattenedDirectoryIds,
+    getAdjacentDirectoryId,
     isDescendantOf,
     loadDirectories,
     saveDirectories,

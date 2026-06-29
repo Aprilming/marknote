@@ -10,6 +10,8 @@ export interface ShortcutSettings {
   showMain: string      // 显示主页面（全局）
   prevNote: string      // 上一页
   nextNote: string      // 下一页
+  prevDirectory: string // 上一个目录
+  nextDirectory: string // 下一个目录
   newNote: string       // 新增页面
   deleteNote: string   // 删除页面
   pin: string          // 置顶窗口
@@ -96,6 +98,8 @@ export const useSettingStore = defineStore('setting', () => {
       showMain: 'Option+Cmd+A',
       prevNote: 'Cmd+[',
       nextNote: 'Cmd+]',
+      prevDirectory: 'Option+Cmd+[',
+      nextDirectory: 'Option+Cmd+]',
       newNote: 'Cmd+N',
       deleteNote: 'Cmd+Backspace',
       pin: 'Cmd+P',
@@ -223,6 +227,8 @@ export const useSettingStore = defineStore('setting', () => {
         showMain: 'Option+Cmd+A',
         prevNote: 'Ctrl+[',
         nextNote: 'Ctrl+]',
+        prevDirectory: 'Option+Cmd+[',
+        nextDirectory: 'Option+Cmd+]',
         newNote: 'Cmd+N',
         deleteNote: 'Cmd+Backspace',
         pin: 'Cmd+P',

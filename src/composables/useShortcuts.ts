@@ -1,6 +1,7 @@
 import { onMounted, onUnmounted } from 'vue'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { useNoteStore } from '@/stores/noteStore'
+import { useDirectoryStore } from '@/stores/directoryStore'
 import { useSettingStore } from '@/stores/settingStore'
 import { useSourceMode } from '@/composables/useSourceMode'
 
@@ -28,8 +29,12 @@ function matchesShortcut(event: KeyboardEvent, shortcut: string): boolean {
     keyMatch = event.key === key
   } else if (key === 'backspace') {
     keyMatch = event.key === 'Backspace'
-  } else if (key === '[' || key === ']' || key === '/') {
-    keyMatch = event.key === key
+  } else if (key === '[') {
+    keyMatch = event.code === 'BracketLeft'
+  } else if (key === ']') {
+    keyMatch = event.code === 'BracketRight'
+  } else if (key === '/') {
+    keyMatch = event.code === 'Slash'
   } else if (key === 'space') {
     keyMatch = event.key === ' '
   } else if (key === 'enter') {
@@ -48,6 +53,7 @@ function matchesShortcut(event: KeyboardEvent, shortcut: string): boolean {
  */
 export function useShortcuts(onOpenSettings?: () => void) {
   const noteStore = useNoteStore()
+  const directoryStore = useDirectoryStore()
   const settingStore = useSettingStore()
   const { toggleSourceMode } = useSourceMode()
 
@@ -86,6 +92,20 @@ export function useShortcuts(onOpenSettings?: () => void) {
     if (matchesShortcut(e, shortcuts.nextNote)) {
       e.preventDefault()
       noteStore.navigateNextOrCreate()
+      return
+    }
+
+    // 上一个目录
+    if (matchesShortcut(e, shortcuts.prevDirectory)) {
+      e.preventDefault()
+      noteStore.setFilterDirectory(directoryStore.getAdjacentDirectoryId('prev'))
+      return
+    }
+
+    // 下一个目录
+    if (matchesShortcut(e, shortcuts.nextDirectory)) {
+      e.preventDefault()
+      noteStore.setFilterDirectory(directoryStore.getAdjacentDirectoryId('next'))
       return
     }
 

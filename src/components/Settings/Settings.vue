@@ -150,8 +150,12 @@ function matchesShortcut(e: KeyboardEvent, shortcut: string): boolean {
     keyMatch = e.key === key
   } else if (key === 'backspace') {
     keyMatch = e.key === 'Backspace'
-  } else if (key === '[' || key === ']' || key === '/') {
-    keyMatch = e.key === key
+  } else if (key === '[') {
+    keyMatch = e.code === 'BracketLeft'
+  } else if (key === ']') {
+    keyMatch = e.code === 'BracketRight'
+  } else if (key === '/') {
+    keyMatch = e.code === 'Slash'
   } else if (key === 'space') {
     keyMatch = e.key === ' '
   } else if (key === 'enter') {
@@ -167,7 +171,16 @@ function matchesShortcut(e: KeyboardEvent, shortcut: string): boolean {
 
 function blockNoteShortcuts(e: KeyboardEvent) {
   const shortcuts = settingStore.settings.shortcuts
-  const blockedShortcuts = [shortcuts.prevNote, shortcuts.nextNote, shortcuts.newNote, shortcuts.deleteNote, shortcuts.lock, shortcuts.toggleSource]
+  const blockedShortcuts = [
+    shortcuts.prevNote,
+    shortcuts.nextNote,
+    shortcuts.prevDirectory,
+    shortcuts.nextDirectory,
+    shortcuts.newNote,
+    shortcuts.deleteNote,
+    shortcuts.lock,
+    shortcuts.toggleSource,
+  ]
 
   for (const shortcut of blockedShortcuts) {
     if (matchesShortcut(e, shortcut)) {
@@ -220,6 +233,8 @@ const shortcutLabels = computed((): Record<keyof ShortcutSettings, string> => ({
   showMain: t('shortcut.showMain'),
   prevNote: t('shortcut.prevNote'),
   nextNote: t('shortcut.nextNote'),
+  prevDirectory: t('shortcut.prevDirectory'),
+  nextDirectory: t('shortcut.nextDirectory'),
   newNote: t('shortcut.newNote'),
   deleteNote: t('shortcut.deleteNote'),
   pin: t('shortcut.pin'),
@@ -232,6 +247,8 @@ const shortcutDescs = computed((): Record<keyof ShortcutSettings, string> => ({
   showMain: t('shortcut.showMainDesc'),
   prevNote: t('shortcut.prevNoteDesc'),
   nextNote: t('shortcut.nextNoteDesc'),
+  prevDirectory: t('shortcut.prevDirectoryDesc'),
+  nextDirectory: t('shortcut.nextDirectoryDesc'),
   newNote: t('shortcut.newNoteDesc'),
   deleteNote: t('shortcut.deleteNoteDesc'),
   pin: t('shortcut.pinDesc'),
