@@ -13,6 +13,8 @@ export default {
   'settings.language': '语言',
   'settings.transparency': '透明度',
   'settings.fontSize': '字体大小',
+  'settings.tabSize': 'Tab 空格数',
+  'settings.tabSizeValue': '{count} 个空格',
   'settings.codeTheme': '代码主题',
   'settings.editorStylePreset': '编辑器样式',
   'settings.editorStylePresetDesc': '选择代码块、行内代码和引用块的视觉风格',

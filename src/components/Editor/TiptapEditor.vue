@@ -31,6 +31,7 @@ import { TextSelection, AllSelection } from 'prosemirror-state'
 import { useFileSystem } from '@/composables/useFileSystem'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { useI18n } from 'vue-i18n'
+import { SOURCE_TAB_INSERT_TEXT, createRichTabInsertText } from './tabInsert'
 
 const lowlight = createLowlight(all)
 
@@ -158,7 +159,9 @@ let imeSawCommitBoundary = false
 let imeSuppressCleanupUntil = 0
 
 const normalizeMarkdown = (markdown: string): string =>
-  markdown.replace(/<(https?:\/\/[^>\s]+)>/g, '[$1]($1)')
+  markdown
+    .replace(/<(https?:\/\/[^>\s]+)>/g, '[$1]($1)')
+    .replace(/\u00A0/g, SOURCE_TAB_INSERT_TEXT)
 
 const isImeEditing = (): boolean => {
   return Boolean(
@@ -882,6 +885,14 @@ const editor = useEditor({
       return false
     },
     handleKeyDown(view, event) {
+      if (event.key === 'Tab' && !event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey) {
+        event.preventDefault()
+        const { state, dispatch } = view
+        const { from, to } = state.selection
+        dispatch(state.tr.insertText(createRichTabInsertText(settingStore.settings.tabSize), from, to).scrollIntoView())
+        return true
+      }
+
       // 代码块/引用块内，上下键在无法自然退出时插入空段落
       const { $from, $to } = view.state.selection
 
@@ -1009,7 +1020,7 @@ const editor = useEditor({
 
       return false
     },
-    // 全选 + 复制时粘贴 markdown 源码（含 ``` 等标记），非全选时将链接序列化为 [text](url)
+    // 复制时粘贴 markdown 源码（含列表、段落、代码块等结构）
     clipboardTextSerializer: (slice) => {
       const ed = editor.value
       if (ed) {
@@ -1017,22 +1028,9 @@ const editor = useEditor({
         if (from === 0 && to === ed.state.doc.content.size) {
           return getNormalizedMarkdown() || ''
         }
+        return normalizeMarkdown(ed.storage.markdown.serializer.serialize(slice.content))
       }
-      // 遍历选中的节点：链接文本输出 [text](url)，其余输出纯文本
-      let result = ''
-      slice.content.descendants((node) => {
-        if (node.isText) {
-          const linkMark = node.marks.find(mark => mark.type.name === 'link')
-          if (linkMark) {
-            result += `[${node.text}](${linkMark.attrs.href || ''})`
-          } else {
-            result += node.text || ''
-          }
-          return false
-        }
-        return true
-      })
-      return result
+      return normalizeMarkdown(slice.content.textBetween(0, slice.content.size, '\n\n', '\n'))
     },
     handlePaste(view, event) {
       // 处理粘贴事件，特别是图片粘贴
@@ -1222,8 +1220,6 @@ const getNormalizedMarkdown = (): string => {
 watch(() => props.initialContent, (newContent) => {
   if (editor.value && !isImeEditing() && newContent !== getNormalizedMarkdown()) {
     editor.value.commands.setContent(newContent)
-    // 切换笔记时滚动到顶部
-    editor.value.view.dom.scrollTop = 0
   }
 })
 
@@ -1326,6 +1322,18 @@ onUnmounted(() => {
 })
 
 defineExpose({
+  getScrollRatio() {
+    const wrapper = document.querySelector('.tiptap-wrapper') as HTMLElement | null
+    if (!wrapper) return 0
+    const maxScroll = wrapper.scrollHeight - wrapper.clientHeight
+    return maxScroll > 0 ? wrapper.scrollTop / maxScroll : 0
+  },
+  setScrollRatio(ratio: number) {
+    const wrapper = document.querySelector('.tiptap-wrapper') as HTMLElement | null
+    if (!wrapper) return
+    const maxScroll = wrapper.scrollHeight - wrapper.clientHeight
+    wrapper.scrollTop = Math.max(0, Math.min(1, ratio)) * Math.max(0, maxScroll)
+  },
   setSearchQuery(query: string) {
     editor.value?.commands.setSearchQuery(query)
   },

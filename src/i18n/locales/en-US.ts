@@ -13,6 +13,8 @@ export default {
   'settings.language': 'Language',
   'settings.transparency': 'Transparency',
   'settings.fontSize': 'Font Size',
+  'settings.tabSize': 'Tab Size',
+  'settings.tabSizeValue': '{count} spaces',
   'settings.codeTheme': 'Code Theme',
   'settings.editorStylePreset': 'Editor Style',
   'settings.editorStylePresetDesc': 'Choose visual style for code blocks, inline code, and blockquotes',

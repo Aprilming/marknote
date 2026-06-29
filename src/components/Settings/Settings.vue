@@ -530,6 +530,22 @@ function getPromptPreview(prompt: string): string {
 
           <div class="setting-item">
             <div class="setting-label">
+              <span class="setting-name">{{ $t('settings.tabSize') }}</span>
+              <span class="setting-value">{{ $t('settings.tabSizeValue', { count: settingStore.settings.tabSize }) }}</span>
+            </div>
+            <input
+              type="range"
+              min="1"
+              max="12"
+              step="1"
+              :value="settingStore.settings.tabSize"
+              @input="settingStore.updateSettings('tabSize', parseInt(($event.target as HTMLInputElement).value))"
+              class="alpha-slider"
+            />
+          </div>
+
+          <div class="setting-item">
+            <div class="setting-label">
               <span class="setting-name">{{ $t('settings.codeTheme') }}</span>
             </div>
             <div class="code-theme-selector">

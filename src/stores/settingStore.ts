@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { useAssistantsStore } from '@/stores/assistantsStore'
 import type { PresetColors } from '@/composables/editorStylePresets'
+import { clampTabSize } from '@/components/Editor/tabInsert'
 
 export type Theme = 'light' | 'dark' | 'auto'
 
@@ -40,6 +41,7 @@ export interface AppSettings {
   language: 'zh-CN' | 'en-US'
   theme: Theme
   fontSize: number
+  tabSize: number
   fontFamily: string
   showGrid: boolean
   translucent: boolean
@@ -72,6 +74,7 @@ export const useSettingStore = defineStore('setting', () => {
     language: 'zh-CN',
     theme: 'auto',
     fontSize: 14,
+    tabSize: 4,
     fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
     showGrid: false,
     translucent: true,
@@ -143,7 +146,7 @@ export const useSettingStore = defineStore('setting', () => {
 
   // Actions
   function updateSettings<K extends keyof AppSettings>(key: K, value: AppSettings[K]) {
-    settings.value[key] = value
+    settings.value[key] = (key === 'tabSize' ? clampTabSize(value as number) : value) as AppSettings[K]
     // Save to localStorage
     saveSettings()
 
@@ -172,6 +175,7 @@ export const useSettingStore = defineStore('setting', () => {
         settings.value = {
           ...settings.value,
           ...parsed,
+          tabSize: clampTabSize(parsed.tabSize ?? settings.value.tabSize),
           shortcuts: { ...settings.value.shortcuts, ...(parsed.shortcuts || {}) },
           customEditorStyle: {
             light: { ...(settings.value.customEditorStyle?.light || {}), ...(parsed.customEditorStyle?.light || {}) },
@@ -197,6 +201,7 @@ export const useSettingStore = defineStore('setting', () => {
       language: 'zh-CN',
       theme: 'auto',
       fontSize: 14,
+      tabSize: 4,
       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
       showGrid: false,
       translucent: true,

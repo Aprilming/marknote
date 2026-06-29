@@ -11,6 +11,7 @@ import { useFileSystem } from '@/composables/useFileSystem'
 import { useSourceMode } from '@/composables/useSourceMode'
 import { useTheme } from '@/composables/useTheme'
 import NoteColorPicker from '@/components/NoteColorPicker.vue'
+import { createSourceTabInsertText } from './tabInsert'
 
 const noteStore = useNoteStore()
 const directoryStore = useDirectoryStore()
@@ -226,6 +227,58 @@ const searchVisible = ref(false)
 const searchQuery = ref('')
 const searchMatchCount = ref(0)
 const searchCurrentIndex = ref(0)
+const markdownScrollRatios = new Map<string, number>()
+const sourceScrollRatios = new Map<string, number>()
+
+function getTextareaScrollRatio() {
+  const textarea = sourceTextareaRef.value
+  if (!textarea) return 0
+  const maxScroll = textarea.scrollHeight - textarea.clientHeight
+  return maxScroll > 0 ? textarea.scrollTop / maxScroll : 0
+}
+
+function setTextareaScrollRatio(ratio: number) {
+  const textarea = sourceTextareaRef.value
+  if (!textarea) return
+  const maxScroll = textarea.scrollHeight - textarea.clientHeight
+  textarea.scrollTop = Math.max(0, Math.min(1, ratio)) * Math.max(0, maxScroll)
+}
+
+function getCurrentNoteId() {
+  return currentNote.value?.id || ''
+}
+
+function saveCurrentModeScrollRatio() {
+  const noteId = getCurrentNoteId()
+  if (!noteId) return
+
+  if (isSourceMode.value) {
+    sourceScrollRatios.set(noteId, getTextareaScrollRatio())
+  } else {
+    markdownScrollRatios.set(noteId, editorRef.value?.getScrollRatio() ?? 0)
+  }
+}
+
+function getSavedScrollRatio(targetSourceMode: boolean) {
+  const noteId = getCurrentNoteId()
+  if (!noteId) return 0
+
+  return (targetSourceMode ? sourceScrollRatios : markdownScrollRatios).get(noteId) ?? 0
+}
+
+function restoreScrollAfterModeSwitch(targetSourceMode: boolean) {
+  const ratio = getSavedScrollRatio(targetSourceMode)
+
+  nextTick(() => {
+    requestAnimationFrame(() => {
+      if (targetSourceMode) {
+        setTextareaScrollRatio(ratio)
+      } else {
+        editorRef.value?.setScrollRatio(ratio)
+      }
+    })
+  })
+}
 
 function openSearch() {
   searchVisible.value = true
@@ -303,6 +356,20 @@ function handleSourceInput(e: Event) {
   }
 }
 
+function handleSourceKeydown(e: KeyboardEvent) {
+  if (e.key !== 'Tab' || e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return
+
+  const textarea = e.target as HTMLTextAreaElement
+  if (textarea.readOnly) return
+
+  e.preventDefault()
+  textarea.setRangeText(createSourceTabInsertText(settingStore.settings.tabSize), textarea.selectionStart, textarea.selectionEnd, 'end')
+  localContent.value = textarea.value
+  if (currentNote.value) {
+    noteStore.updateNote(currentNote.value.id, { content: textarea.value })
+  }
+}
+
 // 目录选择器弹出状态
 const dirPickerVisible = ref(false)
 
@@ -318,6 +385,9 @@ function handleDirSelect(id: string | null) {
 
 // 自定义切换源码模式函数，确保内容同步
 function handleToggleSourceMode() {
+  saveCurrentModeScrollRatio()
+  const targetSourceMode = !isSourceMode.value
+
   // 如果当前是源码模式，切换到普通模式前确保内容同步
   if (isSourceMode.value && sourceTextareaRef.value) {
     // 手动同步 textarea 的内容到 localContent
@@ -328,6 +398,7 @@ function handleToggleSourceMode() {
   }
   // 切换模式
   toggleSourceMode()
+  restoreScrollAfterModeSwitch(targetSourceMode)
 }
 </script>
 
@@ -348,6 +419,7 @@ function handleToggleSourceMode() {
         ref="sourceTextareaRef"
         :value="localContent"
         @input="handleSourceInput"
+        @keydown="handleSourceKeydown"
         class="source-textarea"
         :style="currentNote?.backgroundColor ? { background: currentNote.backgroundColor + ' !important' } : {}"
         :readonly="isLocked"
