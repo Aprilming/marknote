@@ -39,6 +39,8 @@ export interface CustomEditorStyle {
   dark: PresetColors
 }
 
+export type TitleBarBehavior = 'auto-hide' | 'always-show'
+
 export interface AppSettings {
   language: 'zh-CN' | 'en-US'
   theme: Theme
@@ -49,6 +51,7 @@ export interface AppSettings {
   translucent: boolean
   windowAlpha: number // 窗口透明度 0.1 - 1.0
   alwaysOnTop: boolean
+  titleBarBehavior: TitleBarBehavior
   autoLaunch: boolean // 开机自启动
   closeBehavior: 'hide' | 'quit' // 关闭窗口行为：hide=隐藏到后台 quit=退出应用
   rememberLastDirectory: boolean // 启动时恢复上次选择的目录
@@ -82,6 +85,7 @@ export const useSettingStore = defineStore('setting', () => {
     translucent: true,
     windowAlpha: 1.0,
     alwaysOnTop: false,
+    titleBarBehavior: 'auto-hide',
     autoLaunch: false,
     closeBehavior: 'hide',
     rememberLastDirectory: false,
@@ -211,6 +215,7 @@ export const useSettingStore = defineStore('setting', () => {
       translucent: true,
       windowAlpha: 1.0,
       alwaysOnTop: false,
+      titleBarBehavior: 'auto-hide',
       autoLaunch: false,
       closeBehavior: 'hide',
       rememberLastDirectory: false,

@@ -703,6 +703,30 @@ function getPromptPreview(prompt: string): string {
             </div>
           </div>
 
+          <div class="setting-item">
+            <div class="setting-label">
+              <span class="setting-name">{{ $t('settings.titleBarBehavior') }}</span>
+            </div>
+            <div class="theme-selector">
+              <button
+                class="theme-btn"
+                :class="{ active: settingStore.settings.titleBarBehavior === 'auto-hide' }"
+                @click="settingStore.updateSettings('titleBarBehavior', 'auto-hide')"
+              >
+                <i class="i-mdi-eye-off-outline"></i>
+                <span>{{ $t('settings.titleBarAutoHide') }}</span>
+              </button>
+              <button
+                class="theme-btn"
+                :class="{ active: settingStore.settings.titleBarBehavior === 'always-show' }"
+                @click="settingStore.updateSettings('titleBarBehavior', 'always-show')"
+              >
+                <i class="i-mdi-eye-outline"></i>
+                <span>{{ $t('settings.titleBarAlwaysShow') }}</span>
+              </button>
+            </div>
+          </div>
+
         </section>
 
         <!-- AI -->

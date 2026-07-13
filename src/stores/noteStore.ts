@@ -88,6 +88,17 @@ export const useNoteStore = defineStore('note', () => {
     }, 2000)
   }
 
+  // Helper: Shake window when at boundary
+  function shakeWindow() {
+    const el = document.getElementById('app')
+    if (!el) return
+    el.classList.remove('shake')
+    // Force reflow to restart animation
+    void el.offsetWidth
+    el.classList.add('shake')
+    setTimeout(() => el.classList.remove('shake'), 400)
+  }
+
   // ============================================
   // iCloud Persistence Functions
   // ============================================
@@ -513,6 +524,7 @@ export const useNoteStore = defineStore('note', () => {
 
     // At first position - show hint, don't navigate
     if (activeIdx === 0) {
+      shakeWindow()
       showHint(i18n.global.t('nav.firstNote'))
       return
     }
@@ -542,6 +554,7 @@ export const useNoteStore = defineStore('note', () => {
     if (activeIdx >= active.length - 1) {
       if (isEmpty) {
         // Last note is empty - show hint
+        shakeWindow()
         showHint(i18n.global.t('nav.lastNote'))
       } else {
         // Last note has content - create new note at tail

@@ -18,8 +18,10 @@ const appWindow = isTauri ? getCurrentWindow() : null
 // 响应式追踪置顶状态
 const isPinned = computed(() => settingStore.settings.alwaysOnTop)
 
-// 标题栏默认隐藏，鼠标悬停时显示
+// 标题栏行为：auto-hide 默认隐藏鼠标悬停时显示，always-show 始终显示
 const isVisible = ref(false)
+
+const titleBarVisible = computed(() => isVisible.value || isPinned.value || settingStore.settings.titleBarBehavior === 'always-show')
 
 function showTitleBar() {
   isVisible.value = true
@@ -27,6 +29,8 @@ function showTitleBar() {
 
 function hideTitleBar() {
   if (dragState) return
+  if (isPinned.value) return
+  if (settingStore.settings.titleBarBehavior === 'always-show') return
   isVisible.value = false
 }
 
@@ -195,7 +199,7 @@ onUnmounted(() => {
   >
     <div
       class="title-bar"
-      :class="{ visible: isVisible }"
+      :class="{ visible: titleBarVisible }"
       @mousedown="startDrag"
     >
     <!-- Window Controls -->
@@ -284,6 +288,7 @@ onUnmounted(() => {
   background: var(--color-surface);
   border-bottom: 1px solid var(--color-border);
   user-select: none;
+  cursor: pointer;
   gap: 20px;
   /* 默认隐藏 */
   opacity: 0;
