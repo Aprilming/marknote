@@ -98,11 +98,11 @@ function extractPreview(content: string): string {
 }
 
 .section-title {
-  padding: 8px 0;
-  font-size: 11px;
+  padding: 12px 0 8px;
+  font-size: var(--text-xs);
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.08em;
   color: var(--color-text-secondary);
 }
 
@@ -110,15 +110,19 @@ function extractPreview(content: string): string {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px;
-  margin-bottom: 4px;
+  padding: 10px 12px;
+  margin-bottom: 2px;
   border-radius: var(--radius-md);
   cursor: pointer;
-  transition: background-color 0.15s;
+  transition: background-color var(--duration-fast) var(--ease-out), transform var(--duration-fast) var(--ease-out);
 }
 
 .note-item:hover {
-  background-color: var(--color-border);
+  background-color: color-mix(in srgb, var(--color-text-secondary) 8%, transparent);
+}
+
+.note-item:active {
+  transform: scale(0.985);
 }
 
 .note-item.active {
@@ -172,9 +176,11 @@ function extractPreview(content: string): string {
   position: absolute;
   left: 4px;
   width: 3px;
-  height: 24px;
+  height: 20px;
   background-color: var(--color-primary);
   border-radius: 2px;
+  top: 50%;
+  transform: translateY(-50%);
 }
 
 .empty-state {
@@ -206,10 +212,14 @@ function extractPreview(content: string): string {
   background-color: var(--color-primary);
   color: white;
   cursor: pointer;
-  transition: background-color 0.15s;
+  transition: background-color var(--duration-fast) var(--ease-out), transform var(--duration-fast) var(--ease-out);
 }
 
 .empty-action:hover {
   background-color: var(--color-primary-hover);
+}
+
+.empty-action:active {
+  transform: scale(0.97);
 }
 </style>

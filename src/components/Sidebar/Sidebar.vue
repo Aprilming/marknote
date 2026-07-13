@@ -41,13 +41,14 @@ async function createNewNote() {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px;
+  padding: var(--space-3) var(--space-3);
 }
 
 .app-title {
   font-size: 18px;
   font-weight: 600;
   color: var(--color-text);
+  letter-spacing: -0.02em;
 }
 
 .new-note-btn {
@@ -61,11 +62,15 @@ async function createNewNote() {
   background-color: var(--color-primary);
   color: white;
   cursor: pointer;
-  transition: background-color 0.15s;
+  transition: background-color var(--duration-fast) var(--ease-out), transform var(--duration-fast) var(--ease-out);
 }
 
 .new-note-btn:hover {
   background-color: var(--color-primary-hover);
+}
+
+.new-note-btn:active {
+  transform: scale(0.92);
 }
 
 .new-note-btn i {

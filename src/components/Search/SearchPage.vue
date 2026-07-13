@@ -467,9 +467,9 @@ function handleKeydown(e: KeyboardEvent) {
 
 .result-item {
   padding: 12px 16px;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   cursor: pointer;
-  transition: background 0.15s;
+  transition: background var(--duration-fast) var(--ease-out);
   user-select: none;
   -webkit-user-select: none;
   touch-action: none;
@@ -485,7 +485,11 @@ function handleKeydown(e: KeyboardEvent) {
 }
 
 .result-item:hover {
-  background: var(--color-surface);
+  background: color-mix(in srgb, var(--color-text-secondary) 6%, transparent);
+}
+
+.result-item:active {
+  transform: scale(0.995);
 }
 
 .result-header {
@@ -497,12 +501,13 @@ function handleKeydown(e: KeyboardEvent) {
 
 .result-title {
   font-size: 15px;
-  font-weight: 500;
+  font-weight: 600;
   color: var(--color-text);
   flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  letter-spacing: -0.01em;
 }
 
 .result-locked-icon {
@@ -520,9 +525,13 @@ function handleKeydown(e: KeyboardEvent) {
 }
 
 .result-preview {
-  font-size: 13px;
+  font-size: var(--text-sm);
   color: var(--color-text-secondary);
-  line-height: 1.4;
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .trash-actions {
@@ -538,11 +547,12 @@ function handleKeydown(e: KeyboardEvent) {
   height: 26px;
   padding: 0 8px;
   border: 1px solid var(--color-border);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--color-surface);
   color: var(--color-text);
   font-size: 12px;
   cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-out);
 }
 
 .trash-action-btn i {
@@ -558,7 +568,11 @@ function handleKeydown(e: KeyboardEvent) {
 }
 
 .trash-action-btn:hover {
-  background: rgba(128, 128, 128, 0.12);
+  background: color-mix(in srgb, var(--color-text-secondary) 10%, transparent);
+}
+
+.trash-action-btn:active {
+  transform: scale(0.95);
 }
 
 .result-item :deep(mark) {

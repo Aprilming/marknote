@@ -293,7 +293,7 @@ onUnmounted(() => {
   /* 默认隐藏 */
   opacity: 0;
   transform: translateY(-100%);
-  transition: opacity 0.2s ease, transform 0.2s ease;
+  transition: opacity var(--duration-normal) var(--ease-out), transform var(--duration-normal) var(--ease-out);
   pointer-events: none;
 }
 
@@ -320,11 +320,16 @@ onUnmounted(() => {
   border-radius: 50%;
   cursor: pointer;
   position: relative;
-  transition: opacity 0.15s;
+  transition: opacity var(--duration-fast) var(--ease-out), transform var(--duration-fast) var(--ease-out);
 }
 
 .window-btn:hover {
   opacity: 0.8;
+  transform: scale(1.15);
+}
+
+.window-btn:active {
+  transform: scale(0.9);
 }
 
 .window-btn .dot {
@@ -371,12 +376,12 @@ onUnmounted(() => {
   background: var(--color-background);
   color: var(--color-text);
   outline: none;
-  transition: all 0.15s;
+  transition: all var(--duration-fast) var(--ease-out);
 }
 
 .search-input:focus {
   border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-primary) 20%, transparent);
 }
 
 .search-input::placeholder {
@@ -400,13 +405,13 @@ onUnmounted(() => {
   gap: 6px;
   min-width: 36px;
   height: 36px;
-  padding: 0 12px;
+  padding: 0 10px;
   border: none;
   border-radius: var(--radius-md);
   background: transparent;
   color: var(--color-text-secondary);
   cursor: pointer;
-  transition: all 0.15s;
+  transition: all var(--duration-fast) var(--ease-out);
   font-size: 14px;
   font-weight: 500;
   pointer-events: auto !important;
@@ -416,9 +421,17 @@ onUnmounted(() => {
   background: var(--color-border);
 }
 
+.action-btn:active {
+  transform: scale(0.93);
+}
+
 .action-btn.active {
   background: var(--color-primary);
   color: white;
+}
+
+.action-btn.active:hover {
+  background: var(--color-primary-hover);
 }
 
 .action-btn i {

@@ -179,12 +179,16 @@ function handleOverlayClick(e: MouseEvent) {
   background: transparent;
   color: var(--color-text-secondary);
   cursor: pointer;
-  transition: all 0.15s;
+  transition: all var(--duration-fast) var(--ease-out);
 }
 
 .close-btn:hover {
-  background: var(--color-border);
+  background: var(--color-popup-hover);
   color: var(--color-text);
+}
+
+.close-btn:active {
+  transform: scale(0.9);
 }
 
 .close-btn i {
@@ -222,12 +226,13 @@ function handleOverlayClick(e: MouseEvent) {
   font-size: 14px;
   color: var(--color-text);
   outline: none;
-  transition: border-color 0.15s;
+  transition: border-color var(--duration-fast) var(--ease-out), box-shadow var(--duration-fast) var(--ease-out);
   box-sizing: border-box;
 }
 
 .form-input:focus {
   border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-primary) 15%, transparent);
 }
 
 .form-input::placeholder {
@@ -243,17 +248,18 @@ function handleOverlayClick(e: MouseEvent) {
   border-radius: var(--radius-sm);
   font-size: 14px;
   font-family: inherit;
-  line-height: 1.5;
+  line-height: 1.6;
   color: var(--color-text);
   outline: none;
   resize: vertical;
   min-height: 120px;
-  transition: border-color 0.15s;
+  transition: border-color var(--duration-fast) var(--ease-out), box-shadow var(--duration-fast) var(--ease-out);
   box-sizing: border-box;
 }
 
 .form-textarea:focus {
   border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-primary) 15%, transparent);
 }
 
 .form-textarea::placeholder {
@@ -278,7 +284,7 @@ function handleOverlayClick(e: MouseEvent) {
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: all var(--duration-fast) var(--ease-out);
 }
 
 .btn-cancel {
@@ -292,6 +298,10 @@ function handleOverlayClick(e: MouseEvent) {
   color: var(--color-primary);
 }
 
+.btn-cancel:active {
+  transform: scale(0.97);
+}
+
 .btn-save {
   background: var(--color-primary);
   color: white;
@@ -299,6 +309,10 @@ function handleOverlayClick(e: MouseEvent) {
 
 .btn-save:hover:not(:disabled) {
   opacity: 0.9;
+}
+
+.btn-save:active:not(:disabled) {
+  transform: scale(0.97);
 }
 
 .btn-save:disabled {
@@ -309,12 +323,12 @@ function handleOverlayClick(e: MouseEvent) {
 /* 过渡动画 */
 .dialog-enter-active,
 .dialog-leave-active {
-  transition: opacity 0.2s ease;
+  transition: opacity var(--duration-normal) var(--ease-out);
 }
 
 .dialog-enter-active .dialog-container,
 .dialog-leave-active .dialog-container {
-  transition: transform 0.2s ease, opacity 0.2s ease;
+  transition: transform var(--duration-normal) var(--ease-out), opacity var(--duration-normal) var(--ease-out);
 }
 
 .dialog-enter-from,
@@ -349,8 +363,16 @@ function handleOverlayClick(e: MouseEvent) {
   border-radius: 12px;
   background: var(--color-border);
   cursor: pointer;
-  transition: background 0.2s;
+  transition: background var(--duration-normal) var(--ease-out);
   padding: 0;
+}
+
+.toggle-btn:active .toggle-slider {
+  transform: scale(0.9);
+}
+
+.toggle-btn.active:active .toggle-slider {
+  transform: translateX(20px) scale(0.9);
 }
 
 .toggle-btn.active {
@@ -365,8 +387,8 @@ function handleOverlayClick(e: MouseEvent) {
   height: 20px;
   border-radius: 50%;
   background: white;
-  transition: transform 0.2s;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  transition: transform var(--duration-normal) var(--ease-out);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
 }
 
 .toggle-btn.active .toggle-slider {

@@ -1657,6 +1657,7 @@ defineExpose({
   height: 100%;
   overflow-y: auto;
   background: var(--note-bg, transparent);
+  border-radius: 8px;
 }
 
 /* AI 加载指示器 */
@@ -1695,11 +1696,15 @@ defineExpose({
   color: white;
   font-size: 12px;
   cursor: pointer;
-  transition: background 0.15s;
+  transition: background var(--duration-fast) var(--ease-out), transform var(--duration-fast) var(--ease-out);
 }
 
 .ai-stop-btn:hover {
   background: rgba(255, 80, 80, 1);
+}
+
+.ai-stop-btn:active {
+  transform: scale(0.95);
 }
 
 .ai-stop-btn i {
@@ -1743,17 +1748,22 @@ defineExpose({
   background: transparent;
   color: var(--color-popup-text, #e0e0e0);
   cursor: pointer;
-  border-radius: 3px;
+  border-radius: 4px;
   font-size: 11px;
   font-weight: bold;
   line-height: 1;
   white-space: nowrap;
   min-width: 22px;
   min-height: 22px;
+  transition: background var(--duration-fast) var(--ease-out);
 }
 
 .bubble-menu button:hover {
   background: var(--color-popup-hover, rgba(255, 255, 255, 0.1));
+}
+
+.bubble-menu button:active {
+  transform: scale(0.92);
 }
 
 .bubble-menu button.is-active {
@@ -1850,10 +1860,15 @@ defineExpose({
   font-size: 13px;
   color: var(--color-popup-text, #e0e0e0);
   gap: 10px;
+  transition: background var(--duration-fast) var(--ease-out);
 }
 
 .context-menu-item:hover {
   background: var(--color-popup-hover, rgba(255, 255, 255, 0.1));
+}
+
+.context-menu-item:active {
+  background: var(--color-popup-hover);
 }
 
 .context-menu-item--disabled {
@@ -1942,7 +1957,7 @@ defineExpose({
   color: var(--color-text-secondary);
   cursor: pointer;
   opacity: 0;
-  transition: opacity 0.15s, background 0.15s, color 0.15s;
+  transition: opacity var(--duration-fast) var(--ease-out), background var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out);
 }
 
 :deep(.tiptap pre:hover .code-block-copy-btn) {
@@ -1975,7 +1990,7 @@ defineExpose({
   color: var(--color-text-secondary);
   cursor: pointer;
   font-size: 12px;
-  transition: background 0.15s, color 0.15s;
+  transition: background var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out);
 }
 
 :deep(.tiptap pre:hover .code-block-lang-btn) {
@@ -2030,7 +2045,7 @@ defineExpose({
   cursor: pointer;
   font-size: 13px;
   color: var(--color-popup-text, #e0e0e0);
-  transition: background 0.1s;
+  transition: background var(--duration-fast) var(--ease-out);
 }
 
 :deep(.code-block-lang-item:hover) {
@@ -2086,7 +2101,7 @@ defineExpose({
 .tiptap > .ProseMirror {
   height: auto;
   min-height: 100%;
-  padding: 40px 48px 40px 72px;
+  padding: 48px 56px 48px 80px;
   color: var(--color-text);
   border-radius: 8px;
 }
@@ -2102,7 +2117,6 @@ defineExpose({
 
 .tiptap h1 {
   font-size: 2em;
-  border-bottom: 1px solid var(--color-border);
   padding-bottom: 8px;
 }
 
@@ -2117,7 +2131,7 @@ defineExpose({
 /* 段落样式 */
 .tiptap p {
   margin-bottom: 12px;
-  line-height: 1.6;
+  line-height: 1.75;
 }
 
 /* 引用样式 */

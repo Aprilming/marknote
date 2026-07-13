@@ -29,7 +29,7 @@ const noteStore = useNoteStore()
 
 <style scoped>
 .search-bar {
-  padding: 0 16px 16px;
+  padding: 0 var(--space-3) var(--space-3);
 }
 
 .search-input-wrapper {
@@ -55,12 +55,12 @@ const noteStore = useNoteStore()
   background-color: var(--color-background);
   color: var(--color-text);
   outline: none;
-  transition: border-color 0.15s, box-shadow 0.15s;
+  transition: border-color var(--duration-fast) var(--ease-out), box-shadow var(--duration-fast) var(--ease-out);
 }
 
 .search-input:focus {
   border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-primary) 20%, transparent);
 }
 
 .search-input::placeholder {
@@ -80,11 +80,15 @@ const noteStore = useNoteStore()
   background: transparent;
   color: var(--color-text-secondary);
   cursor: pointer;
-  transition: background-color 0.15s;
+  transition: background-color var(--duration-fast) var(--ease-out);
 }
 
 .clear-btn:hover {
   background-color: var(--color-border);
+}
+
+.clear-btn:active {
+  transform: scale(0.9);
 }
 
 .clear-btn i {

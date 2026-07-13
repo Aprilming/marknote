@@ -382,7 +382,7 @@ provide('directoryTreeState', reactive({
   font-size: 16px;
   cursor: pointer;
   opacity: 0.6;
-  transition: opacity 0.15s;
+  transition: opacity var(--duration-fast) var(--ease-out);
 }
 
 .add-dir-btn:hover {
@@ -426,11 +426,15 @@ provide('directoryTreeState', reactive({
   gap: 4px;
   padding: 6px 12px;
   cursor: pointer;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   margin: 1px 6px;
-  transition: background 0.1s;
+  transition: background var(--duration-fast) var(--ease-out);
   position: relative;
   min-height: 28px;
+}
+
+.dir-item:active {
+  transform: scale(0.985);
 }
 
 .dir-item:hover {
@@ -537,7 +541,7 @@ provide('directoryTreeState', reactive({
 
 .dir-toggle i {
   font-size: 14px;
-  transition: transform 0.15s;
+  transition: transform var(--duration-fast) var(--ease-out);
   color: var(--color-text-secondary);
 }
 

@@ -93,10 +93,10 @@ onUnmounted(() => {
 
 <style scoped>
 .color-picker-popup {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
+  background: var(--color-popup-bg);
+  border: 1px solid var(--color-popup-border);
   border-radius: var(--radius-md);
-  box-shadow: var(--shadow-lg);
+  box-shadow: var(--shadow-md);
   padding: 12px;
   min-width: 200px;
   backdrop-filter: blur(20px);
@@ -128,17 +128,21 @@ onUnmounted(() => {
   border-radius: var(--radius-sm);
   background: transparent;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: all var(--duration-fast) var(--ease-out);
 }
 
 .color-option:hover {
   border-color: var(--color-primary);
-  background: rgba(59, 130, 246, 0.05);
+  background: color-mix(in srgb, var(--color-primary) 6%, transparent);
+}
+
+.color-option:active {
+  transform: scale(0.95);
 }
 
 .color-option.active {
   border-color: var(--color-primary);
-  background: rgba(59, 130, 246, 0.1);
+  background: color-mix(in srgb, var(--color-primary) 10%, transparent);
 }
 
 .color-swatch {

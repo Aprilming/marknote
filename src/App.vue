@@ -344,12 +344,14 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 12px 16px;
+  padding: 10px 16px;
   background: var(--color-surface);
-  border: 1px solid var(--color-primary);
+  border: 1px solid color-mix(in srgb, var(--color-primary) 40%, transparent);
   border-radius: var(--radius-md);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: var(--shadow-md);
   z-index: 1000;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
 .update-toast-content {
@@ -373,10 +375,14 @@ onUnmounted(() => {
   font-weight: 500;
   color: white;
   cursor: pointer;
-  transition: opacity 0.15s;
+  transition: opacity var(--duration-fast) var(--ease-out), transform var(--duration-fast) var(--ease-out);
 }
 
 .update-toast-btn:hover {
   opacity: 0.9;
+}
+
+.update-toast-btn:active {
+  transform: scale(0.97);
 }
 </style>

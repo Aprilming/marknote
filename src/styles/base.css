@@ -1,6 +1,57 @@
-/* CSS Variables for theming - Light mode (default) */
+/* ============================================
+   Design Token System
+   ============================================ */
+
+/* Light mode (default) */
 :root,
 [data-theme="light"] {
+  /* ---- Font stacks ---- */
+  --font-sans: -apple-system, "SF Pro Text", "PingFang SC", "Inter", "Helvetica Neue", sans-serif;
+  --font-serif: "New York", "Source Han Serif SC", "Songti SC", serif;
+  --font-mono: "SF Mono", "JetBrains Mono", "Fira Code", monospace;
+
+  /* ---- Type scale (1.25 ratio) ---- */
+  --text-xs: 12px;
+  --text-sm: 13px;
+  --text-base: 15px;
+  --text-lg: 19px;
+  --text-xl: 24px;
+  --text-2xl: 30px;
+
+  /* ---- Spacing (8pt grid) ---- */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 16px;
+  --space-4: 24px;
+  --space-5: 32px;
+  --space-6: 48px;
+  --space-7: 64px;
+
+  /* ---- Border radius ---- */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+
+  /* ---- Shadows (layered, very subtle) ---- */
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.03);
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.07);
+
+  /* ---- Neutral gray scale ---- */
+  --gray-50: #FAFAFA;
+  --gray-100: #F5F5F5;
+  --gray-200: #E5E5E5;
+  --gray-300: #D4D4D4;
+  --gray-600: #525252;
+  --gray-700: #404040;
+  --gray-900: #171717;
+
+  /* ---- Transition ---- */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --duration-fast: 150ms;
+  --duration-normal: 220ms;
+
+  /* ---- Legacy tokens (backward compatible) ---- */
   --color-primary: #3b82f6;
   --color-primary-hover: #2563eb;
   --color-background: #ffffff;
@@ -33,24 +84,36 @@
   --spacing-lg: 24px;
   --spacing-xl: 32px;
 
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 14px;
-
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
-  --shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.08);
 }
 
 /* Dark mode */
 [data-theme="dark"] {
+  /* ---- New tokens (dark) ---- */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --duration-fast: 150ms;
+  --duration-normal: 220ms;
+
+  --gray-50: #1a1a1a;
+  --gray-100: #262626;
+  --gray-200: #333333;
+  --gray-300: #404040;
+  --gray-600: #a3a3a3;
+  --gray-700: #d4d4d4;
+  --gray-900: #f5f5f5;
+
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.15);
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.2);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.25);
+
+  /* ---- Legacy tokens (dark) ---- */
   --color-primary: #3b82f6;
   --color-primary-hover: #60a5fa;
   --color-background: #1a1a1a;
   --color-surface: rgba(30, 30, 30, 0.85);
   --color-text: #f1f5f9;
-  --color-text-secondary: #f8f8f8;
-  --color-border: #3a3a3a;
+  --color-text-secondary: #a3a3a3;
+  --color-border: rgba(255, 255, 255, 0.08);
   --color-danger: #ef4444;
   --color-success: #22c55e;
   --color-warning: #f59e0b;
@@ -61,12 +124,14 @@
 
   /* Popup theme variables */
   --color-popup-bg: rgba(30, 30, 30, 0.95);
-  --color-popup-border: rgba(255, 255, 255, 0.1);
+  --color-popup-border: rgba(255, 255, 255, 0.08);
   --color-popup-text: #e0e0e0;
-  --color-popup-hover: rgba(255, 255, 255, 0.1);
+  --color-popup-hover: rgba(255, 255, 255, 0.08);
+
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.3);
 }
 
-/* Reset and base styles */
+/* ---- Global resets ---- */
 *,
 *::before,
 *::after {
@@ -80,13 +145,13 @@ body {
   width: 100%;
   height: 100%;
   overflow: hidden;
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto,
-    "Helvetica Neue", Arial, sans-serif;
+  font-family: var(--font-sans);
   font-size: var(--font-size-base);
   color: var(--color-text);
   background-color: transparent;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
 #app {
@@ -96,8 +161,8 @@ body {
 
 /* Scrollbar styling */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
@@ -106,7 +171,7 @@ body {
 
 ::-webkit-scrollbar-thumb {
   background: var(--color-border);
-  border-radius: 4px;
+  border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
@@ -181,4 +246,3 @@ textarea {
 .shake {
   animation: shake 0.3s ease-in-out;
 }
-

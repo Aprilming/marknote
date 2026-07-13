@@ -972,11 +972,15 @@ function getPromptPreview(prompt: string): string {
   background: transparent;
   color: var(--color-text);
   cursor: pointer;
-  transition: background-color 0.15s;
+  transition: all var(--duration-fast) var(--ease-out);
 }
 
 .back-btn:hover {
   background: var(--color-border);
+}
+
+.back-btn:active {
+  transform: scale(0.93);
 }
 
 .back-btn i {
@@ -987,6 +991,7 @@ function getPromptPreview(prompt: string): string {
   font-size: 18px;
   font-weight: 600;
   color: var(--color-text);
+  letter-spacing: -0.02em;
 }
 
 /* 主体布局：左侧导航 + 右侧内容 */
@@ -1014,18 +1019,22 @@ function getPromptPreview(prompt: string): string {
   gap: 10px;
   padding: 10px 14px;
   border: none;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   background: transparent;
   color: var(--color-text-secondary);
   font-size: 14px;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: all var(--duration-fast) var(--ease-out);
   text-align: left;
 }
 
 .nav-item:hover {
   background: var(--color-border);
   color: var(--color-text);
+}
+
+.nav-item:active {
+  transform: scale(0.97);
 }
 
 .nav-item.active {
@@ -1055,14 +1064,18 @@ function getPromptPreview(prompt: string): string {
   flex-direction: column;
   gap: 12px;
   padding: 16px;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
+  background: var(--color-background);
   border-radius: var(--radius-md);
   margin-bottom: 8px;
+  transition: box-shadow var(--duration-fast) var(--ease-out);
 }
 
 .setting-item:last-child {
   margin-bottom: 0;
+}
+
+.setting-item:hover {
+  box-shadow: var(--shadow-xs);
 }
 
 .setting-label {
@@ -1075,6 +1088,7 @@ function getPromptPreview(prompt: string): string {
   font-size: 15px;
   font-weight: 500;
   color: var(--color-text);
+  letter-spacing: -0.01em;
 }
 
 .setting-value {
@@ -1106,23 +1120,35 @@ function getPromptPreview(prompt: string): string {
   background: var(--color-primary);
   border-radius: 50%;
   cursor: pointer;
-  transition: transform 0.15s;
+  transition: transform var(--duration-fast) var(--ease-out);
 }
 
 .alpha-slider::-webkit-slider-thumb:hover {
   transform: scale(1.2);
 }
 
+.alpha-slider::-webkit-slider-thumb:active {
+  transform: scale(0.9);
+}
+
 .toggle-btn {
   position: relative;
-  width: 48px;
-  height: 28px;
+  width: 44px;
+  height: 26px;
   padding: 0;
   border: none;
-  border-radius: 14px;
+  border-radius: 13px;
   background: var(--color-border);
   cursor: pointer;
-  transition: background-color 0.2s;
+  transition: background-color var(--duration-normal) var(--ease-out);
+}
+
+.toggle-btn:active .toggle-slider {
+  transform: scale(0.9);
+}
+
+.toggle-btn.active:active .toggle-slider {
+  transform: translateX(18px) scale(0.9);
 }
 
 .toggle-btn.active {
@@ -1145,13 +1171,17 @@ function getPromptPreview(prompt: string): string {
   border-radius: var(--radius-sm);
   color: var(--color-text-secondary);
   cursor: pointer;
-  transition: all 0.15s;
+  transition: all var(--duration-fast) var(--ease-out);
   font-size: 13px;
 }
 
 .theme-btn:hover {
   border-color: var(--color-primary);
   color: var(--color-text);
+}
+
+.theme-btn:active {
+  transform: scale(0.97);
 }
 
 .theme-btn.active {
@@ -1183,13 +1213,17 @@ function getPromptPreview(prompt: string): string {
   border-radius: var(--radius-sm);
   color: var(--color-text-secondary);
   cursor: pointer;
-  transition: all 0.15s;
+  transition: all var(--duration-fast) var(--ease-out);
   font-size: 12px;
 }
 
 .code-theme-btn:hover {
   border-color: var(--color-primary);
   color: var(--color-text);
+}
+
+.code-theme-btn:active {
+  transform: scale(0.97);
 }
 
 .code-theme-btn.active {
@@ -1220,7 +1254,7 @@ function getPromptPreview(prompt: string): string {
   border-radius: var(--radius-sm);
   color: var(--color-text-secondary);
   cursor: pointer;
-  transition: all 0.15s;
+  transition: all var(--duration-fast) var(--ease-out);
   font-size: 11px;
   min-width: 68px;
 }
@@ -1228,6 +1262,10 @@ function getPromptPreview(prompt: string): string {
 .preset-btn:hover {
   border-color: var(--color-primary);
   color: var(--color-text);
+}
+
+.preset-btn:active {
+  transform: scale(0.97);
 }
 
 .preset-btn.active {
@@ -1260,9 +1298,8 @@ function getPromptPreview(prompt: string): string {
 
 /* Custom colors panel */
 .custom-colors-section {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
+  background: var(--color-background);
+  border-radius: var(--radius-md);
   padding: 16px;
   margin-bottom: 16px;
 }
@@ -1340,15 +1377,16 @@ function getPromptPreview(prompt: string): string {
   position: absolute;
   top: 2px;
   left: 2px;
-  width: 24px;
-  height: 24px;
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
   background: white;
-  transition: transform 0.2s;
+  transition: transform var(--duration-normal) var(--ease-out);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
 }
 
 .toggle-btn.active .toggle-slider {
-  transform: translateX(20px);
+  transform: translateX(18px);
 }
 
 .shortcut-list {
@@ -1362,20 +1400,19 @@ function getPromptPreview(prompt: string): string {
   align-items: center;
   justify-content: space-between;
   padding: 16px;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
+  background: var(--color-background);
   border-radius: var(--radius-md);
   cursor: pointer;
-  transition: all 0.15s;
+  transition: all var(--duration-fast) var(--ease-out), box-shadow var(--duration-fast) var(--ease-out);
 }
 
 .shortcut-item:hover {
-  border-color: var(--color-primary);
+  box-shadow: var(--shadow-xs);
 }
 
 .shortcut-item.recording {
-  border-color: var(--color-primary);
-  background: rgba(59, 130, 246, 0.05);
+  background: color-mix(in srgb, var(--color-primary) 6%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-primary) 30%, transparent);
 }
 
 .shortcut-info {
@@ -1449,11 +1486,12 @@ function getPromptPreview(prompt: string): string {
   font-size: 14px;
   color: var(--color-text);
   outline: none;
-  transition: border-color 0.15s;
+  transition: border-color var(--duration-fast) var(--ease-out), box-shadow var(--duration-fast) var(--ease-out);
 }
 
 .text-input:focus {
   border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-primary) 15%, transparent);
 }
 
 .text-input::placeholder {
@@ -1499,12 +1537,16 @@ function getPromptPreview(prompt: string): string {
   font-size: 13px;
   color: var(--color-text);
   cursor: pointer;
-  transition: all 0.15s;
+  transition: all var(--duration-fast) var(--ease-out);
 }
 
 .check-update-btn:hover:not(:disabled) {
   border-color: var(--color-primary);
   color: var(--color-primary);
+}
+
+.check-update-btn:active:not(:disabled) {
+  transform: scale(0.97);
 }
 
 .check-update-btn:disabled {
@@ -1524,18 +1566,17 @@ function getPromptPreview(prompt: string): string {
   gap: 10px;
   width: 100%;
   padding: 14px 16px;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
+  background: var(--color-background);
   border-radius: var(--radius-md);
   font-size: 14px;
   color: var(--color-text);
   text-decoration: none;
-  transition: all 0.15s;
+  transition: all var(--duration-fast) var(--ease-out);
 }
 
 .link-item:hover {
-  border-color: var(--color-primary);
   color: var(--color-primary);
+  box-shadow: var(--shadow-xs);
 }
 
 .link-item i:first-child {
@@ -1561,12 +1602,16 @@ function getPromptPreview(prompt: string): string {
   color: var(--color-primary);
   cursor: pointer;
   opacity: 0.8;
-  transition: opacity 0.15s;
+  transition: opacity var(--duration-fast) var(--ease-out);
 }
 
 .link-btn:hover {
   opacity: 1;
   text-decoration: underline;
+}
+
+.link-btn:active {
+  opacity: 0.6;
 }
 
 .spin {
@@ -1610,11 +1655,16 @@ function getPromptPreview(prompt: string): string {
   font-weight: 500;
   color: white;
   cursor: pointer;
-  transition: opacity 0.15s;
+  transition: all var(--duration-fast) var(--ease-out);
 }
 
-.download-btn:hover {
+.download-btn:hover:not(:disabled) {
   opacity: 0.9;
+  transform: scale(1.02);
+}
+
+.download-btn:active:not(:disabled) {
+  transform: scale(0.97);
 }
 
 .download-btn i {
@@ -1657,12 +1707,16 @@ function getPromptPreview(prompt: string): string {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   cursor: pointer;
-  transition: all 0.15s;
+  transition: all var(--duration-fast) var(--ease-out);
 }
 
 .template-assistant-btn:hover {
   border-color: var(--color-primary);
-  background: rgba(59, 130, 246, 0.05);
+  background: color-mix(in srgb, var(--color-primary) 6%, transparent);
+}
+
+.template-assistant-btn:active {
+  transform: scale(0.97);
 }
 
 .template-name {
@@ -1683,9 +1737,12 @@ function getPromptPreview(prompt: string): string {
   justify-content: space-between;
   padding: 12px 16px;
   background: var(--color-background);
-  border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-  transition: all 0.15s;
+  transition: all var(--duration-fast) var(--ease-out);
+}
+
+.assistant-card:hover {
+  box-shadow: var(--shadow-xs);
 }
 
 .assistant-card:hover {
@@ -1736,11 +1793,15 @@ function getPromptPreview(prompt: string): string {
   border-radius: var(--radius-sm);
   background: transparent;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: all var(--duration-fast) var(--ease-out);
 }
 
 .action-btn i {
   font-size: 16px;
+}
+
+.action-btn:active {
+  transform: scale(0.9);
 }
 
 .edit-btn {
@@ -1757,7 +1818,7 @@ function getPromptPreview(prompt: string): string {
 }
 
 .delete-btn:hover {
-  background: rgba(239, 68, 68, 0.1);
+  background: color-mix(in srgb, #ef4444 10%, transparent);
   color: #ef4444;
 }
 
@@ -1786,12 +1847,17 @@ function getPromptPreview(prompt: string): string {
   color: var(--color-text-secondary);
   font-size: 14px;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: all var(--duration-fast) var(--ease-out);
 }
 
 .add-assistant-btn:hover {
   border-color: var(--color-primary);
   color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary) 4%, transparent);
+}
+
+.add-assistant-btn:active {
+  transform: scale(0.98);
 }
 
 .add-assistant-btn i {

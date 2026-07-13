@@ -92,10 +92,37 @@ const wordCount = computed(() => {
 // get current note
 const currentNote = computed(() => noteStore.currentNote)
 
+// 导航方向，用于滑动过渡动画
+const navDirection = ref<'left' | 'right' | 'up' | 'down'>('right')
+
+// 追踪目录切换，用于决定垂直滑动方向
+let pendingDirChange: 'up' | 'down' | null = null
+
+watch(() => noteStore.filterDirectoryId, (newId, oldId) => {
+  if (oldId === undefined || newId === oldId) return
+  const ids = directoryStore.getFlattenedDirectoryIds()
+  const oldIdx = ids.findIndex(id => id === oldId)
+  const newIdx = ids.findIndex(id => id === newId)
+  pendingDirChange = newIdx > oldIdx ? 'down' : 'up'
+})
+
 // update local content when current note changes
 watch(
   () => currentNote.value?.id,
   async (newId, oldId) => {
+    // 判断导航方向（优先使用目录切换方向）
+    if (pendingDirChange) {
+      navDirection.value = pendingDirChange
+      pendingDirChange = null
+    } else if (oldId && newId && newId !== oldId) {
+      const list = noteStore.activeNoteList
+      const oldIndex = list.findIndex(n => n.id === oldId)
+      const newIndex = list.findIndex(n => n.id === newId)
+      if (oldIndex >= 0 && newIndex >= 0) {
+        navDirection.value = newIndex > oldIndex ? 'right' : 'left'
+      }
+    }
+
     // 如果是从源码模式切换笔记，需要先同步保存当前笔记的编辑内容
     if (isSourceMode.value && oldId && newId !== oldId) {
       // 确保 textarea 的内容完全同步到 localContent
@@ -515,31 +542,37 @@ function handleToggleSourceMode() {
     </Transition>
 
     <div class="editor-wrapper">
-      <!-- 源码模式编辑 -->
-      <textarea
-        v-if="isSourceMode"
-        ref="sourceTextareaRef"
-        :value="localContent"
-        @input="handleSourceInput"
-        @keydown="handleSourceKeydown"
-        class="source-textarea"
-        :style="currentNote?.backgroundColor ? { background: currentNote.backgroundColor + ' !important' } : {}"
-        :readonly="isLocked"
-        :placeholder="$t('editor.sourcePlaceholder')"
-      ></textarea>
-
-      <!-- 正常 Markdown 编辑模式 -->
-      <TiptapEditor
-        v-else
-        ref="editorRef"
+      <div
+        class="editor-content-wrapper"
         :key="currentNote?.id"
-        :initial-content="localContent"
-        :font-size="settingStore.settings.fontSize"
-        :font-family="settingStore.settings.fontFamily"
-        :is-locked="isLocked"
-        :note-bg-color="currentNote?.backgroundColor"
-        @update="handleEditorUpdate"
-      />
+        :class="`dir-${navDirection}`"
+      >
+        <!-- 源码模式编辑 -->
+        <textarea
+          v-if="isSourceMode"
+          ref="sourceTextareaRef"
+          :value="localContent"
+          @input="handleSourceInput"
+          @keydown="handleSourceKeydown"
+          class="source-textarea"
+          :style="currentNote?.backgroundColor ? { background: currentNote.backgroundColor + ' !important' } : {}"
+          :readonly="isLocked"
+          :placeholder="$t('editor.sourcePlaceholder')"
+        ></textarea>
+
+        <!-- 正常 Markdown 编辑模式 -->
+        <TiptapEditor
+          v-else
+          ref="editorRef"
+          :key="currentNote?.id"
+          :initial-content="localContent"
+          :font-size="settingStore.settings.fontSize"
+          :font-family="settingStore.settings.fontFamily"
+          :is-locked="isLocked"
+          :note-bg-color="currentNote?.backgroundColor"
+          @update="handleEditorUpdate"
+        />
+      </div>
 
       <!-- navigation hints -->
       <div v-if="noteStore.activeIndex > 0" class="nav-hint left-hint" @click.stop="noteStore.selectPrev()">
@@ -696,7 +729,7 @@ function handleToggleSourceMode() {
   flex: 1;
   width: 100%;
   height: 100%;
-  padding: 40px 48px;
+  padding: 48px 56px;
   overflow: auto;
   background: var(--note-bg, transparent) !important;
   color: var(--color-text);
@@ -705,11 +738,11 @@ function handleToggleSourceMode() {
   resize: none;
   font-family: v-bind('settingStore.settings.fontFamily');
   font-size: v-bind('settingStore.settings.fontSize + "px"');
-  line-height: 1.6;
+  line-height: 1.75;
   white-space: pre-wrap;
   word-wrap: break-word;
   box-sizing: border-box;
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   -webkit-appearance: none;
   -moz-appearance: none;
   appearance: none;
@@ -724,6 +757,80 @@ function handleToggleSourceMode() {
   background: var(--color-surface);
 }
 
+.editor-content-wrapper {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  /* key 变化时 DOM 重建，CSS animation 自动触发 */
+  animation-duration: 420ms;
+  animation-timing-function: var(--ease-out);
+}
+
+/* 从右侧进入（下一条笔记） */
+.editor-content-wrapper.dir-right {
+  animation-name: note-slide-in-right;
+}
+
+/* 从左侧进入（上一条） */
+.editor-content-wrapper.dir-left {
+  animation-name: note-slide-in-left;
+}
+
+@keyframes note-slide-in-right {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes note-slide-in-left {
+  from {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+/* 从下方进入（下一个目录） */
+.editor-content-wrapper.dir-down {
+  animation-name: note-slide-in-down;
+}
+
+/* 从上方进入（上一个目录） */
+.editor-content-wrapper.dir-up {
+  animation-name: note-slide-in-up;
+}
+
+@keyframes note-slide-in-down {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes note-slide-in-up {
+  from {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
 .nav-hint {
   position: absolute;
   top: 50%;
@@ -732,13 +839,13 @@ function handleToggleSourceMode() {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
   background-color: var(--color-surface);
   color: var(--color-text-secondary);
   opacity: 0;
-  transition: opacity 0.2s;
+  transition: opacity var(--duration-normal) var(--ease-out), transform var(--duration-normal) var(--ease-out), background-color var(--duration-fast) var(--ease-out);
   cursor: pointer;
   box-shadow: var(--shadow-sm);
   user-select: none;
@@ -754,7 +861,16 @@ function handleToggleSourceMode() {
 }
 
 .editor-wrapper:hover .nav-hint {
-  opacity: 0.6;
+  opacity: 0.5;
+}
+
+.nav-hint:hover {
+  opacity: 0.8 !important;
+  background-color: var(--color-popup-bg);
+}
+
+.nav-hint:active {
+  transform: translateY(-50%) scale(0.92);
 }
 
 .nav-hint i {
@@ -772,13 +888,13 @@ function handleToggleSourceMode() {
 }
 
 .note-indicator {
-  padding: 6px 14px;
+  padding: 5px 12px;
   background-color: var(--color-surface);
   border-radius: 20px;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 500;
   color: var(--color-text-secondary);
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow-xs);
   pointer-events: none;
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
@@ -795,22 +911,27 @@ function handleToggleSourceMode() {
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 6px 12px;
+  padding: 5px 12px;
   background-color: var(--color-surface);
   border-radius: 20px;
   font-size: 12px;
   color: var(--color-primary);
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow-xs);
   cursor: pointer;
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   user-select: none;
   -webkit-user-select: none;
-  transition: background 0.15s;
+  transition: background var(--duration-fast) var(--ease-out), box-shadow var(--duration-fast) var(--ease-out);
 }
 
 .dir-indicator:hover {
-  background-color: var(--color-border);
+  background-color: var(--color-popup-bg);
+  box-shadow: var(--shadow-sm);
+}
+
+.dir-indicator:active {
+  transform: translateX(-50%) scale(0.97);
 }
 
 .dir-indicator i.i-mdi-chevron-down {
@@ -853,15 +974,15 @@ function handleToggleSourceMode() {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   border: none;
-  border-radius: 20px;
+  border-radius: 50%;
   background-color: var(--color-surface);
   color: var(--color-text-secondary);
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow-xs);
   cursor: pointer;
-  transition: all 0.15s;
+  transition: all var(--duration-fast) var(--ease-out);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   user-select: none;
@@ -870,7 +991,11 @@ function handleToggleSourceMode() {
 
 .lock-button:hover {
   color: var(--color-text);
-  transform: scale(1.05);
+  background-color: var(--color-popup-bg);
+}
+
+.lock-button:active {
+  transform: scale(0.92);
 }
 
 .lock-button.is-locked {
@@ -878,22 +1003,22 @@ function handleToggleSourceMode() {
 }
 
 .lock-button i {
-  font-size: 16px;
+  font-size: 15px;
 }
 
 .source-mode-button {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   border: none;
-  border-radius: 20px;
+  border-radius: 50%;
   background-color: var(--color-surface);
   color: var(--color-text-secondary);
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow-xs);
   cursor: pointer;
-  transition: all 0.15s;
+  transition: all var(--duration-fast) var(--ease-out);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   user-select: none;
@@ -902,7 +1027,11 @@ function handleToggleSourceMode() {
 
 .source-mode-button:hover {
   color: var(--color-text);
-  transform: scale(1.05);
+  background-color: var(--color-popup-bg);
+}
+
+.source-mode-button:active {
+  transform: scale(0.92);
 }
 
 .source-mode-button.is-active {
@@ -910,7 +1039,7 @@ function handleToggleSourceMode() {
 }
 
 .source-mode-button i {
-  font-size: 16px;
+  font-size: 15px;
 }
 
 .bottom-bar {
@@ -924,13 +1053,13 @@ function handleToggleSourceMode() {
 }
 
 .word-count {
-  padding: 6px 14px;
+  padding: 5px 12px;
   background-color: var(--color-surface);
   border-radius: 20px;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 500;
   color: var(--color-text-secondary);
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow-xs);
   pointer-events: none;
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
@@ -945,12 +1074,12 @@ function handleToggleSourceMode() {
   width: 32px;
   height: 32px;
   border: none;
-  border-radius: 20px;
+  border-radius: 50%;
   background-color: var(--color-surface);
   color: var(--color-text-secondary);
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow-xs);
   cursor: pointer;
-  transition: all 0.15s;
+  transition: all var(--duration-fast) var(--ease-out);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   user-select: none;
@@ -959,11 +1088,15 @@ function handleToggleSourceMode() {
 
 .search-toggle-btn:hover {
   color: var(--color-text);
-  transform: scale(1.05);
+  background-color: var(--color-popup-bg);
+}
+
+.search-toggle-btn:active {
+  transform: scale(0.92);
 }
 
 .search-toggle-btn i {
-  font-size: 16px;
+  font-size: 15px;
 }
 
 .color-btn {
@@ -973,19 +1106,23 @@ function handleToggleSourceMode() {
   width: 32px;
   height: 32px;
   border: none;
-  border-radius: 20px;
+  border-radius: 50%;
   background-color: var(--color-surface);
   color: var(--color-text-secondary);
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow-xs);
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all var(--duration-fast) var(--ease-out);
   flex-shrink: 0;
   -webkit-user-select: none;
 }
 
 .color-btn:hover {
   color: var(--color-text);
-  transform: scale(1.05);
+  background-color: var(--color-popup-bg);
+}
+
+.color-btn:active {
+  transform: scale(0.92);
 }
 
 .color-btn.has-color {
@@ -993,7 +1130,7 @@ function handleToggleSourceMode() {
 }
 
 .color-btn i {
-  font-size: 16px;
+  font-size: 15px;
 }
 
 .color-picker-overlay {
@@ -1055,16 +1192,20 @@ function handleToggleSourceMode() {
   width: 24px;
   height: 24px;
   border: none;
-  border-radius: 12px;
+  border-radius: 50%;
   background: transparent;
   color: var(--color-text-secondary);
   cursor: pointer;
-  transition: all 0.15s;
+  transition: all var(--duration-fast) var(--ease-out);
 }
 
 .search-nav-btn:hover:not(:disabled) {
-  background: var(--color-border);
+  background: var(--color-popup-hover);
   color: var(--color-text);
+}
+
+.search-nav-btn:active:not(:disabled) {
+  transform: scale(0.9);
 }
 
 .search-nav-btn:disabled {
@@ -1083,16 +1224,20 @@ function handleToggleSourceMode() {
   width: 24px;
   height: 24px;
   border: none;
-  border-radius: 12px;
+  border-radius: 50%;
   background: transparent;
   color: var(--color-text-secondary);
   cursor: pointer;
-  transition: all 0.15s;
+  transition: all var(--duration-fast) var(--ease-out);
 }
 
 .search-close-btn:hover {
-  background: var(--color-border);
+  background: var(--color-popup-hover);
   color: var(--color-text);
+}
+
+.search-close-btn:active {
+  transform: scale(0.9);
 }
 
 .search-close-btn i {
@@ -1101,17 +1246,17 @@ function handleToggleSourceMode() {
 
 .save-indicator {
   position: absolute;
-  bottom: 20px;
-  right: 20px;
+  bottom: 24px;
+  right: 24px;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   background-color: var(--color-surface);
   border-radius: 50%;
   color: var(--color-primary);
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow-xs);
   pointer-events: none;
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
