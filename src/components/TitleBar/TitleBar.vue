@@ -66,10 +66,8 @@ async function createNoteAfterCurrent() {
   await noteStore.createNoteAfterCurrent()
 }
 
-async function deleteCurrentNote() {
-  if (noteStore.currentNoteId) {
-    await noteStore.deleteNote(noteStore.currentNoteId)
-  }
+function deleteCurrentNote() {
+  window.dispatchEvent(new CustomEvent('marknote:delete-note'))
 }
 
 async function importMarkdown() {

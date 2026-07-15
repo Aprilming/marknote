@@ -38,41 +38,51 @@ function extractPreview(content: string): string {
     <!-- Pinned Notes Section -->
     <div v-if="noteStore.pinnedNotes.length > 0" class="note-section">
       <div class="section-title">{{ $t('notelist.pinned') }}</div>
-      <div
-        v-for="note in noteStore.pinnedNotes"
-        :key="note.id"
-        class="note-item pinned"
-        :class="{ active: note.id === noteStore.currentNoteId }"
-        @click="noteStore.selectNote(note.id)"
-      >
-        <div class="note-content">
-          <div class="note-title">{{ note.title || $t('notelist.untitled') }}</div>
-          <div class="note-preview">{{ extractPreview(note.content) }}</div>
+      <TransitionGroup name="note-item" tag="div" class="note-group">
+        <div
+          v-for="note in noteStore.pinnedNotes"
+          :key="note.id"
+          class="note-item pinned"
+          :class="{
+            active: note.id === noteStore.currentNoteId,
+            'note-item-deleting': note.id === noteStore.deletingNoteId
+          }"
+          @click="noteStore.selectNote(note.id)"
+        >
+          <div class="note-content">
+            <div class="note-title">{{ note.title || $t('notelist.untitled') }}</div>
+            <div class="note-preview">{{ extractPreview(note.content) }}</div>
+          </div>
+          <div class="note-meta">
+            <span class="note-time">{{ formatTimestamp(note.updatedAt) }}</span>
+          </div>
         </div>
-        <div class="note-meta">
-          <span class="note-time">{{ formatTimestamp(note.updatedAt) }}</span>
-        </div>
-      </div>
+      </TransitionGroup>
     </div>
 
     <!-- Unpinned Notes Section -->
     <div v-if="noteStore.unpinnedNotes.length > 0" class="note-section">
       <div v-if="noteStore.pinnedNotes.length > 0" class="section-title">{{ $t('notelist.notes') }}</div>
-      <div
-        v-for="note in noteStore.unpinnedNotes"
-        :key="note.id"
-        class="note-item"
-        :class="{ active: note.id === noteStore.currentNoteId }"
-        @click="noteStore.selectNote(note.id)"
-      >
-        <div class="note-content">
-          <div class="note-title">{{ note.title || $t('notelist.untitled') }}</div>
-          <div class="note-preview">{{ extractPreview(note.content) }}</div>
+      <TransitionGroup name="note-item" tag="div" class="note-group">
+        <div
+          v-for="note in noteStore.unpinnedNotes"
+          :key="note.id"
+          class="note-item"
+          :class="{
+            active: note.id === noteStore.currentNoteId,
+            'note-item-deleting': note.id === noteStore.deletingNoteId
+          }"
+          @click="noteStore.selectNote(note.id)"
+        >
+          <div class="note-content">
+            <div class="note-title">{{ note.title || $t('notelist.untitled') }}</div>
+            <div class="note-preview">{{ extractPreview(note.content) }}</div>
+          </div>
+          <div class="note-meta">
+            <span class="note-time">{{ formatTimestamp(note.updatedAt) }}</span>
+          </div>
         </div>
-        <div class="note-meta">
-          <span class="note-time">{{ formatTimestamp(note.updatedAt) }}</span>
-        </div>
-      </div>
+      </TransitionGroup>
     </div>
 
     <!-- Empty State -->
@@ -221,5 +231,68 @@ function extractPreview(content: string): string {
 
 .empty-action:active {
   transform: scale(0.97);
+}
+
+/* --- 笔记列表动画 --- */
+
+.note-group {
+  position: relative;
+}
+
+/* 笔记项移出动画：向左滑出 + 折叠 + 淡出 */
+.note-item-leave-active {
+  transition: all 0.6s cubic-bezier(0.55, 0.0, 0.7, 0.1);
+  position: relative;
+}
+
+.note-item-leave-to {
+  opacity: 0;
+  transform: translateX(-30px) scale(0.9);
+  max-height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  margin-bottom: 0;
+  overflow: hidden;
+}
+
+/* 笔记项移入动画 */
+.note-item-enter-active {
+  transition: all 0.3s var(--ease-out);
+}
+
+.note-item-enter-from {
+  opacity: 0;
+  transform: translateY(-10px);
+}
+
+/* 正在被删除的笔记项：抖动 + 高亮边框 */
+.note-item-deleting {
+  animation: note-delete-pulse 0.4s ease-in-out;
+  position: relative;
+  overflow: hidden;
+}
+
+.note-item-deleting::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 80, 80, 0.2), transparent);
+  animation: note-delete-sweep 0.5s ease-in-out forwards;
+  pointer-events: none;
+  border-radius: inherit;
+}
+
+@keyframes note-delete-pulse {
+  0% { transform: scale(1); }
+  25% { transform: scale(1.02); }
+  50% { transform: scale(0.98); }
+  75% { transform: scale(1.01); }
+  100% { transform: scale(1); }
+}
+
+@keyframes note-delete-sweep {
+  0% { transform: translateX(-100%); opacity: 0; }
+  30% { opacity: 1; }
+  100% { transform: translateX(100%); opacity: 0; }
 }
 </style>

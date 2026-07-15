@@ -17,6 +17,7 @@ export const useNoteStore = defineStore('note', () => {
   const isLoading = ref(false)
   const loadError = ref<Error | null>(null)
   const filterDirectoryId = ref<string | null>(null) // null = root 目录
+  const deletingNoteId = ref<string | null>(null) // 正在播放删除动画的笔记 ID
 
   // 监听 currentNoteId 变化，保存到 localStorage
   watch(currentNoteId, (newId) => {
@@ -417,6 +418,10 @@ export const useNoteStore = defineStore('note', () => {
     }
   }
 
+  function setDeletingNoteId(id: string | null) {
+    deletingNoteId.value = id
+  }
+
   async function deleteNote(id: string) {
     const note = notes.value.find(n => n.id === id)
     if (note?.isLocked || note?.trashedAt) {
@@ -428,6 +433,7 @@ export const useNoteStore = defineStore('note', () => {
       note.trashedAt = Date.now()
       note.updatedAt = Date.now()
       note.isPinned = false
+      deletingNoteId.value = null
       await saveMetadataToCloud()
 
       // If deleted note was current, select the previous note (or first if at index 0)
@@ -661,6 +667,7 @@ export const useNoteStore = defineStore('note', () => {
     isLoading,
     loadError,
     filterDirectoryId,
+    deletingNoteId,
     // Getters
     currentNote,
     currentIndex,
@@ -682,6 +689,7 @@ export const useNoteStore = defineStore('note', () => {
     createNoteWithContent,
     updateNote,
     deleteNote,
+    setDeletingNoteId,
     restoreNote,
     permanentlyDeleteNote,
     emptyTrash,

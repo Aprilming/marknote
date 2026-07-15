@@ -72,12 +72,10 @@ export function useShortcuts(onOpenSettings?: () => void) {
       return
     }
 
-    // 删除当前笔记
+    // 删除当前笔记（派发事件让 Editor 组件处理动画）
     if (matchesShortcut(e, shortcuts.deleteNote)) {
       e.preventDefault()
-      if (noteStore.currentNoteId) {
-        noteStore.deleteNote(noteStore.currentNoteId)
-      }
+      window.dispatchEvent(new CustomEvent('marknote:delete-note'))
       return
     }
 
