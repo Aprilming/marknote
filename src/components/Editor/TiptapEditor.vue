@@ -5,6 +5,7 @@ import StarterKit from '@tiptap/starter-kit'
 import { Extension, getHTMLFromFragment } from '@tiptap/core'
 import { Paragraph } from '@tiptap/extension-paragraph'
 import { Heading } from '@tiptap/extension-heading'
+import { HardBreak } from '@tiptap/extension-hard-break'
 import { Markdown } from 'tiptap-markdown'
 import Placeholder from '@tiptap/extension-placeholder'
 import BubbleMenuExtension from '@tiptap/extension-bubble-menu'
@@ -34,7 +35,6 @@ import TableCell from '@tiptap/extension-table-cell'
 import TableHeader from '@tiptap/extension-table-header'
 import { TextSelection, AllSelection } from 'prosemirror-state'
 import { useFileSystem } from '@/composables/useFileSystem'
-import { openUrl } from '@tauri-apps/plugin-opener'
 import { useI18n } from 'vue-i18n'
 import { SOURCE_TAB_INSERT_TEXT, createRichTabInsertText } from './tabInsert'
 
@@ -67,6 +67,23 @@ const renderAlignedMarkdownBlock = (state: any, node: any, fallback: (state: any
   state.write(getHTMLFromFragment(Fragment.from(node), node.type.schema))
   state.closeBlock(node)
 }
+
+// tiptap-markdown 0.8.10 默认的 hardBreak 序列化在“行尾/连续硬换行”时会静默丢弃内容，
+// 导致源码/渲染模式切换后换行消失；且行尾两空格的写法无法表达“连续多空行”（会被 Markdown 折叠）。
+// 这里统一序列化为 <br>（tiptap-markdown 已开启 markdown-it 的 html 支持），
+// 使单换行、连续多空行都能在源码/渲染模式间稳定往返保留
+const HardBreakStable = HardBreak.extend({
+  addStorage() {
+    return {
+      markdown: {
+        serialize(state: any) {
+          state.write('<br>')
+        },
+        parse: {},
+      },
+    }
+  },
+})
 
 const AlignedParagraph = Paragraph.extend({
   addStorage() {
@@ -242,6 +259,7 @@ const imeDebug = (phase: string, payload: Record<string, unknown> = {}) => {
 }
 
 let pendingImeUpdate = false
+let lastEmittedMarkdown = '' // 最后一次 emit 的 markdown，用于跳过父组件回传时的重复序列化
 let imeUpdateTimer: ReturnType<typeof setTimeout> | null = null
 let imeCompositionStart: number | null = null
 let imeCompositionText = ''
@@ -268,7 +286,9 @@ const getEditorMarkdown = (ed: any = editor.value): string => {
 
 const emitEditorUpdate = (ed: any = editor.value) => {
   if (!ed) return
-  emit('update', getEditorMarkdown(ed))
+  const md = getEditorMarkdown(ed)
+  lastEmittedMarkdown = md
+  emit('update', md)
   pendingImeUpdate = false
 }
 
@@ -818,6 +838,7 @@ const editor = useEditor({
       codeBlock: false,
       paragraph: false,
       heading: false,
+      hardBreak: false,
       bulletList: {
         keepMarks: true,
         keepAttributes: false,
@@ -827,6 +848,7 @@ const editor = useEditor({
         keepAttributes: false,
       },
     }),
+    HardBreakStable,
     AlignedParagraph,
     AlignedHeading,
     TextAlign,
@@ -970,12 +992,12 @@ const editor = useEditor({
     handleClickOn(_view, _pos, _node, _nodePos, event) {
       // 只处理左键点击
       if (event.button !== 0) return false
-      // 点击链接时使用系统浏览器打开
+      // 链接由 Tauri 的 shell.open 配置统一在系统浏览器打开，
+      // 这里仅阻止编辑器默认的光标定位行为，避免与原生机制重复打开（曾出现两个标签页）
       const target = event.target as HTMLElement
       const anchor = target.closest('a')
       if (anchor?.href) {
         event.preventDefault()
-        openUrl(anchor.href)
         return true
       }
       return false
@@ -1045,6 +1067,22 @@ const editor = useEditor({
         performance.now() - ((window as any).__imeEndedAt || 0) < 100
       )) {
         return true
+      }
+
+      // 普通段落内 Enter 插入硬换行（<br>），使换行在源码/渲染模式切换时稳定保留；
+      // Shift+Enter 仍走默认的段落拆分；列表项内保持默认结构（新建/退出列表项）
+      if (event.key === 'Enter' && !event.shiftKey) {
+        const { $from } = view.state.selection
+        let inListItem = false
+        for (let d = $from.depth; d > 0; d--) {
+          const name = $from.node(d).type.name
+          if (name === 'listItem' || name === 'taskItem') { inListItem = true; break }
+        }
+        if ($from.parent.type.name === 'paragraph' && !inListItem) {
+          event.preventDefault()
+          view.dispatch(view.state.tr.replaceSelectionWith(view.state.schema.nodes.hardBreak.create()).scrollIntoView())
+          return true
+        }
       }
 
       if ((event.metaKey || event.ctrlKey) && event.key === 'a') {
@@ -1121,6 +1159,12 @@ const editor = useEditor({
       const ed = editor.value
       if (ed) {
         const { from, to } = ed.state.selection
+        // 选区完全位于同一个代码块内时，只复制纯代码文本，不携带 ``` 标记
+        const $from = ed.state.doc.resolve(from)
+        const $to = ed.state.doc.resolve(to)
+        if ($from.parent.type.name === 'codeBlock' && $from.parent === $to.parent) {
+          return slice.content.textBetween(0, slice.content.size, '\n', '\n')
+        }
         if (from === 0 && to === ed.state.doc.content.size) {
           return getNormalizedMarkdown() || ''
         }
@@ -1314,8 +1358,13 @@ const getNormalizedMarkdown = (): string => {
 }
 
 watch(() => props.initialContent, (newContent) => {
-  if (editor.value && !isImeEditing() && newContent !== getNormalizedMarkdown()) {
-    editor.value.commands.setContent(newContent)
+  // 自己 emit 出去的内容（lastEmittedMarkdown）即为当前编辑器状态，直接跳过，
+  // 避免每次输入都再做一次全量序列化比较
+  if (editor.value && !isImeEditing() && newContent !== lastEmittedMarkdown) {
+    const current = getNormalizedMarkdown()
+    if (newContent !== current) {
+      editor.value.commands.setContent(newContent)
+    }
   }
 })
 

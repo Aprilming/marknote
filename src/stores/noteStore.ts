@@ -18,6 +18,8 @@ export const useNoteStore = defineStore('note', () => {
   const loadError = ref<Error | null>(null)
   const filterDirectoryId = ref<string | null>(null) // null = root 目录
   const deletingNoteId = ref<string | null>(null) // 正在播放删除动画的笔记 ID
+  // 导航方向：由导航行为显式设置，编辑器直接绑定此值控制切换动画（上一条=left、下一条/新建=right）
+  const navDirection = ref<'left' | 'right' | 'up' | 'down'>('right')
 
   // 监听 currentNoteId 变化，保存到 localStorage
   watch(currentNoteId, (newId) => {
@@ -270,6 +272,13 @@ export const useNoteStore = defineStore('note', () => {
   }
 
   function selectNote(id: string) {
+    // 侧边栏点击：按列表索引推断方向
+    const active = activeNoteList.value
+    const oldIdx = active.findIndex(n => n.id === currentNoteId.value)
+    const newIdx = active.findIndex(n => n.id === id)
+    if (oldIdx >= 0 && newIdx >= 0) {
+      navDirection.value = newIdx > oldIdx ? 'right' : 'left'
+    }
     currentNoteId.value = id
   }
 
@@ -333,6 +342,7 @@ export const useNoteStore = defineStore('note', () => {
       directoryId: currentDirectoryId(),
     }
     notes.value.push(newNote)
+    navDirection.value = 'right'
     currentNoteId.value = newNote.id
 
     // Save to iCloud
@@ -364,6 +374,39 @@ export const useNoteStore = defineStore('note', () => {
       // No current note, add to end
       notes.value.push(newNote)
     }
+    navDirection.value = 'right'
+    currentNoteId.value = newNote.id
+
+    // Save to iCloud
+    await saveNoteToCloud(newNote)
+
+    return newNote
+  }
+
+  async function createNoteBeforeCurrent(): Promise<Note> {
+    const now = Date.now()
+    const newNote: Note = {
+      id: crypto.randomUUID(),
+      title: 'New Note',
+      content: '',
+      createdAt: now,
+      updatedAt: now,
+      isPinned: false,
+      isLocked: false,
+      directoryId: currentDirectoryId(),
+    }
+
+    // Find current note index directly to ensure accuracy
+    const index = notes.value.findIndex(n => n.id === currentNoteId.value)
+
+    if (index !== -1) {
+      // Insert before current note
+      notes.value.splice(index, 0, newNote)
+    } else {
+      // No current note, add to end
+      notes.value.push(newNote)
+    }
+    navDirection.value = 'left'
     currentNoteId.value = newNote.id
 
     // Save to iCloud
@@ -392,6 +435,7 @@ export const useNoteStore = defineStore('note', () => {
     } else {
       notes.value.push(newNote)
     }
+    navDirection.value = 'right'
     currentNoteId.value = newNote.id
 
     // Save to iCloud
@@ -403,18 +447,16 @@ export const useNoteStore = defineStore('note', () => {
   function updateNote(id: string, updates: Partial<Omit<Note, 'id' | 'createdAt'>>) {
     const index = notes.value.findIndex(n => n.id === id)
     if (index !== -1) {
-      notes.value[index] = {
-        ...notes.value[index],
-        ...updates,
-        updatedAt: Date.now(),
-      }
+      const note = notes.value[index]
+      // 原地更新字段而非替换数组元素，避免每次内容变化都触发所有依赖 notes 的计算属性重算
+      Object.assign(note, updates, { updatedAt: Date.now() })
       // Update title if content changed
       if (updates.content) {
-        notes.value[index].title = extractTitle(updates.content)
+        note.title = extractTitle(updates.content)
       }
 
       // Schedule save to iCloud (debounced)
-      scheduleSave(notes.value[index])
+      scheduleSave(note)
     }
   }
 
@@ -440,6 +482,8 @@ export const useNoteStore = defineStore('note', () => {
       if (currentNoteId.value === id) {
         const active = activeNoteList.value
         const newIndex = Math.min(Math.max(0, oldActiveIndex - 1), active.length - 1)
+        // 被删除笔记已从 activeNoteList 移除，watch 反查 oldIndex 会得到 -1，需显式指定方向
+        navDirection.value = oldActiveIndex > 0 ? 'left' : 'right'
         currentNoteId.value = active[newIndex]?.id ?? null
       }
     }
@@ -510,6 +554,7 @@ export const useNoteStore = defineStore('note', () => {
     const active = activeNoteList.value
     const idx = active.findIndex(n => n.id === currentNoteId.value)
     if (idx > 0) {
+      navDirection.value = 'left'
       currentNoteId.value = active[idx - 1].id
     }
   }
@@ -518,6 +563,7 @@ export const useNoteStore = defineStore('note', () => {
     const active = activeNoteList.value
     const idx = active.findIndex(n => n.id === currentNoteId.value)
     if (idx < active.length - 1) {
+      navDirection.value = 'right'
       currentNoteId.value = active[idx + 1].id
     }
   }
@@ -540,12 +586,15 @@ export const useNoteStore = defineStore('note', () => {
       const idToDelete = currentNoteId.value!
       const realIndex = notes.value.findIndex(n => n.id === idToDelete)
       notes.value.splice(realIndex, 1)
+      // 空笔记已从列表移除，watch 无法反查其索引，显式指定向上一条切换的方向
+      navDirection.value = 'left'
       currentNoteId.value = active[activeIdx - 1].id
 
       // Delete from iCloud
       await deleteNoteFromCloud(idToDelete)
     } else {
       // Navigate to previous note
+      navDirection.value = 'left'
       currentNoteId.value = active[activeIdx - 1].id
     }
   }
@@ -575,12 +624,15 @@ export const useNoteStore = defineStore('note', () => {
       const idToDelete = currentNoteId.value!
       const realIndex = notes.value.findIndex(n => n.id === idToDelete)
       notes.value.splice(realIndex, 1)
+      // 空笔记已从列表移除，watch 无法反查其索引，显式指定向下一条切换的方向
+      navDirection.value = 'right'
       currentNoteId.value = active[activeIdx + 1].id
 
       // Delete from iCloud
       await deleteNoteFromCloud(idToDelete)
     } else {
       // Navigate to next note
+      navDirection.value = 'right'
       currentNoteId.value = active[activeIdx + 1].id
     }
   }
@@ -650,8 +702,8 @@ export const useNoteStore = defineStore('note', () => {
 
   // Helper function to extract title from content
   function extractTitle(content: string): string {
-    const lines = content.trim().split('\n')
-    const firstLine = lines[0]?.trim() || ''
+    // 只取第一行，避免对大内容做整串 trim + split
+    const firstLine = content.trimStart().split('\n', 1)[0]?.trim() || ''
     if (firstLine.startsWith('#')) {
       return firstLine.replace(/^#+\s*/, '').substring(0, 50)
     }
@@ -668,6 +720,7 @@ export const useNoteStore = defineStore('note', () => {
     loadError,
     filterDirectoryId,
     deletingNoteId,
+    navDirection,
     // Getters
     currentNote,
     currentIndex,
@@ -686,6 +739,7 @@ export const useNoteStore = defineStore('note', () => {
     createNoteAtHead,
     createNoteAtTail,
     createNoteAfterCurrent,
+    createNoteBeforeCurrent,
     createNoteWithContent,
     updateNote,
     deleteNote,

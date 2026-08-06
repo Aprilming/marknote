@@ -13,6 +13,7 @@ export interface ShortcutSettings {
   prevDirectory: string // 上一个目录
   nextDirectory: string // 下一个目录
   newNote: string       // 新增页面
+  newNoteBefore: string // 在当前页面之前新增
   deleteNote: string   // 删除页面
   pin: string          // 置顶窗口
   lock: string         // 锁定/解锁笔记
@@ -105,6 +106,7 @@ export const useSettingStore = defineStore('setting', () => {
       prevDirectory: 'Option+Cmd+[',
       nextDirectory: 'Option+Cmd+]',
       newNote: 'Cmd+N',
+      newNoteBefore: 'Cmd+Shift+N',
       deleteNote: 'Cmd+Backspace',
       pin: 'Cmd+P',
       lock: 'Cmd+L',
@@ -235,6 +237,7 @@ export const useSettingStore = defineStore('setting', () => {
         prevDirectory: 'Option+Cmd+[',
         nextDirectory: 'Option+Cmd+]',
         newNote: 'Cmd+N',
+        newNoteBefore: 'Cmd+Shift+N',
         deleteNote: 'Cmd+Backspace',
         pin: 'Cmd+P',
         lock: 'Cmd+L',

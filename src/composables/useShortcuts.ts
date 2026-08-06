@@ -72,6 +72,13 @@ export function useShortcuts(onOpenSettings?: () => void) {
       return
     }
 
+    // 在当前页面之前新建笔记
+    if (matchesShortcut(e, shortcuts.newNoteBefore)) {
+      e.preventDefault()
+      noteStore.createNoteBeforeCurrent()
+      return
+    }
+
     // 删除当前笔记（派发事件让 Editor 组件处理动画）
     if (matchesShortcut(e, shortcuts.deleteNote)) {
       e.preventDefault()

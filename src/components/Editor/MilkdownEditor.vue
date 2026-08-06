@@ -90,71 +90,95 @@ function handleVortexDelete() {
   vortexDeleting.value = true
   noteStore.setDeletingNoteId(id)
 
-  // --- 创建闪光叠加层 ---
-  const overlay = document.createElement('div')
-  overlay.className = 'delete-flash-overlay'
-  container.appendChild(overlay)
-
-  // --- 叠加层动画（白色闪光脉冲）---
-  overlay.animate([
-    { opacity: 0, boxShadow: '0 0 0px rgba(255,255,255,0)', offset: 0 },
-    { opacity: 0, boxShadow: '0 0 0px rgba(255,255,255,0)', offset: 0.08 },
-    { opacity: 0.1, boxShadow: '0 0 40px rgba(255,255,255,0.1)', offset: 0.12 },
-    { opacity: 0.2, boxShadow: '0 0 80px rgba(255,255,255,0.18)', offset: 0.18 },
-    { opacity: 0.4, boxShadow: '0 0 140px rgba(255,255,255,0.3)', offset: 0.3 },
-    { opacity: 0.6, boxShadow: '0 0 220px rgba(255,255,255,0.5)', offset: 0.45 },
-    { opacity: 0.8, boxShadow: '0 0 320px rgba(255,255,255,0.7)', offset: 0.6 },
-    { opacity: 0.95, boxShadow: '0 0 450px rgba(255,255,255,0.9)', offset: 0.78 },
-    { opacity: 1, boxShadow: '0 0 600px rgba(255,255,255,1)', offset: 1 },
-  ], {
-    duration: 1200,
-    easing: 'ease-in',
-    fill: 'forwards',
-  })
-
-  // --- 编辑器内容动画（碎裂 + 漩涡 + 湮灭）---
+  // --- 内容动画（形变 + 模糊 + 亮度，颜色交由彩虹层负责）---
   const wrapper = container.querySelector('.editor-content-wrapper') as HTMLElement | null
   if (wrapper) {
-    // 阶段1: 震动碎裂 (轻微随机抖动 + 倾斜)
-    // 阶段2: 被吸入漩涡 (旋转 + 收缩 + 模糊上升)
-    // 阶段3: 湮灭 (归零 + 强模糊)
+    // 确保父容器可定位子元素
+    const host = wrapper.parentElement
+    if (host && getComputedStyle(host).position === 'static') {
+      host.style.position = 'relative'
+    }
+
+    // --- 创建彩虹漩涡轨迹层：多条环带按角度/时间滞后错开，形成涡旋轨迹 ---
+    // 层数控制成本：每层都是带 mask/blur 的大元素，太多会卡顿
+    const TRAIL_COUNT = 4
+    const appendHost = host ?? wrapper
+    const trailLayers: HTMLElement[] = []
+    for (let i = 0; i < TRAIL_COUNT; i++) {
+      const layer = document.createElement('div')
+      layer.className = 'vortex-rainbow'
+      appendHost.appendChild(layer)
+      trailLayers.push(layer)
+    }
+
     wrapper.animate([
-      // === 阶段 1: 空间撕裂 (0-10%) 快速震几下就进入漩涡 ===
+      // === 阶段 1: 空间撕裂 (0-6%) ===
       { transform: 'translate(0, 0) scale(1) rotate(0deg) skew(0deg)', filter: 'blur(0px) brightness(1)', offset: 0 },
       { transform: 'translate(3px, -2px) scale(1.01) rotate(0.5deg) skew(0.5deg)', filter: 'blur(0px) brightness(1.05)', offset: 0.02 },
       { transform: 'translate(-4px, 3px) scale(0.98) rotate(-0.8deg) skew(-0.5deg)', filter: 'blur(0px) brightness(1.1)', offset: 0.04 },
       { transform: 'translate(4px, 2px) scale(1.005) rotate(0.6deg) skew(0.3deg)', filter: 'blur(0px) brightness(1.15)', offset: 0.06 },
-      { transform: 'translate(-3px, -3px) scale(0.97) rotate(-0.6deg) skew(-0.4deg)', filter: 'blur(0.5px) brightness(1.2)', offset: 0.08 },
-      { transform: 'translate(0, 0) scale(0.95) rotate(0deg) skew(0deg)', filter: 'blur(1px) brightness(1.25)', offset: 0.1 },
-      // === 阶段 2: 涡旋吸入 (10-70%) 慢速旋转缩小，清清楚楚 ===
-      { transform: 'translate(0, -2px) scale(0.92) rotate(8deg) skew(0.5deg)', filter: 'blur(1px) brightness(1.3)', offset: 0.15 },
-      { transform: 'translate(0, -4px) scale(0.85) rotate(18deg) skew(1deg)', filter: 'blur(1.5px) brightness(1.4)', offset: 0.22 },
-      { transform: 'translate(0, -6px) scale(0.78) rotate(30deg) skew(1.2deg)', filter: 'blur(2px) brightness(1.5)', offset: 0.3 },
-      { transform: 'translate(0, -8px) scale(0.68) rotate(45deg) skew(1.5deg)', filter: 'blur(2.5px) brightness(1.7)', offset: 0.38 },
-      { transform: 'translate(0, -10px) scale(0.55) rotate(65deg) skew(2deg)', filter: 'blur(3px) brightness(1.9)', offset: 0.46 },
-      { transform: 'translate(0, -12px) scale(0.42) rotate(90deg) skew(2.5deg)', filter: 'blur(4px) brightness(2.1)', offset: 0.54 },
-      { transform: 'translate(0, -14px) scale(0.3) rotate(120deg) skew(3deg)', filter: 'blur(5px) brightness(2.4)', offset: 0.62 },
-      { transform: 'translate(0, -15px) scale(0.18) rotate(155deg) skew(3deg)', filter: 'blur(6px) brightness(2.7)', offset: 0.7 },
-      // === 阶段 3: 湮灭 (70-90%) ===
-      { transform: 'translate(0, -14px) scale(0.1) rotate(195deg) skew(4deg)', filter: 'blur(8px) brightness(3.5)', offset: 0.78 },
-      { transform: 'translate(0, -10px) scale(0.04) rotate(240deg) skew(4deg)', filter: 'blur(10px) brightness(5)', offset: 0.85 },
-      { transform: 'translate(0, -5px) scale(0.01) rotate(280deg) skew(5deg)', filter: 'blur(12px) brightness(6.5)', offset: 0.9 },
-      // === 阶段 4: 虚无 (90-100%) ===
-      { transform: 'translate(0, 0) scale(0) rotate(320deg) skew(0deg)', filter: 'blur(15px) brightness(8)', offset: 0.95 },
-      { transform: 'translate(0, 0) scale(0) rotate(360deg) skew(0deg)', filter: 'blur(15px) brightness(8)', offset: 1 },
+      // === 阶段 2: 马桶式涡旋 (6-76%)：围绕中心顺时针旋转并螺旋收拢 ===
+      { transform: 'translate(13.2px, 4.8px) scale(0.97) rotate(20deg) skew(0.5deg)', filter: 'blur(0.5px) brightness(1.2)', offset: 0.08 },
+      { transform: 'translate(14px, 24.2px) scale(0.93) rotate(60deg) skew(0.8deg)', filter: 'blur(1px) brightness(1.3)', offset: 0.12 },
+      { transform: 'translate(-25.7px, 30.6px) scale(0.86) rotate(130deg) skew(1.2deg)', filter: 'blur(1.5px) brightness(1.4)', offset: 0.18 },
+      { transform: 'translate(-34.5px, -28.9px) scale(0.78) rotate(220deg) skew(1.5deg)', filter: 'blur(2px) brightness(1.55)', offset: 0.26 },
+      { transform: 'translate(36.4px, -21px) scale(0.68) rotate(330deg) skew(2deg)', filter: 'blur(2.5px) brightness(1.7)', offset: 0.36 },
+      { transform: 'translate(0px, 35px) scale(0.56) rotate(450deg) skew(2.4deg)', filter: 'blur(3px) brightness(1.9)', offset: 0.46 },
+      { transform: 'translate(-20.7px, -17.4px) scale(0.43) rotate(580deg) skew(2.8deg)', filter: 'blur(4px) brightness(2.1)', offset: 0.56 },
+      { transform: 'translate(17.7px, -3.1px) scale(0.3) rotate(710deg) skew(3.2deg)', filter: 'blur(5px) brightness(2.4)', offset: 0.66 },
+      { transform: 'translate(-3.8px, 10.3px) scale(0.18) rotate(830deg) skew(3.5deg)', filter: 'blur(6.5px) brightness(2.8)', offset: 0.76 },
+      // === 阶段 3: 冲入下水道 (76-93%)：加速收拢进中心 ===
+      { transform: 'translate(-4.7px, -1.7px) scale(0.08) rotate(920deg) skew(4deg)', filter: 'blur(8px) brightness(3.5)', offset: 0.86 },
+      { transform: 'translate(0, 0) scale(0.02) rotate(980deg) skew(4deg)', filter: 'blur(12px) brightness(5)', offset: 0.93 },
+      // === 阶段 4: 虚无 (93-100%) ===
+      { transform: 'translate(0, 0) scale(0) rotate(980deg) skew(0deg)', filter: 'blur(15px) brightness(8)', offset: 1 },
     ], {
       duration: 1200,
       easing: 'cubic-bezier(0.45, 0.0, 0.6, 0.1)',
       fill: 'forwards',
     })
+
+    // === 彩虹漩涡轨迹动画：各层沿螺旋轨道旋转吸入，角度/时间双滞后形成可见轨迹 ===
+    const fade = (i: number) => Math.max(0.15, 1 - i * 0.12)
+    const rotOffset = (i: number) => (i * 360) / TRAIL_COUNT
+    const scaleBoost = (i: number) => 1 + i * 0.06
+    // 轨道坐标：角度 → 圆上百分比坐标（相对元素尺寸），半径随吸入收缩成螺旋
+    const orbit = (angle: number, radius: number) => {
+      const rad = angle * Math.PI / 180
+      return `${(Math.cos(rad) * radius).toFixed(2)}% ${(Math.sin(rad) * radius).toFixed(2)}%`
+    }
+
+    const trailAnims = trailLayers.map((layer, i) => {
+      // 越靠后的轨迹层越模糊、越淡，营造纵深与残影感（仅用 GPU 友好的 blur，避免 SVG 滤镜卡顿）
+      layer.style.filter = `blur(${(1.5 + i * 1.2).toFixed(1)}px) saturate(1.8)`
+      const base = rotOffset(i)
+      const boost = scaleBoost(i)
+      const s = (v: number) => (v * boost).toFixed(3)
+
+      return layer.animate([
+        { opacity: 0,              transform: `translate(${orbit(base, 15)}) rotate(${base}deg) scale(${s(0.4)})` },
+        { opacity: 0.45 * fade(i), transform: `translate(${orbit(base + 90, 13)}) rotate(${base + 90}deg) scale(${s(0.66)})` },
+        { opacity: 0.8 * fade(i),  transform: `translate(${orbit(base + 200, 10)}) rotate(${base + 200}deg) scale(${s(0.9)})` },
+        { opacity: fade(i),        transform: `translate(${orbit(base + 320, 7)}) rotate(${base + 320}deg) scale(${s(1.03)})` },
+        { opacity: 0.75 * fade(i), transform: `translate(${orbit(base + 430, 4.5)}) rotate(${base + 430}deg) scale(${s(0.85)})` },
+        { opacity: 0.4 * fade(i),  transform: `translate(${orbit(base + 530, 2.5)}) rotate(${base + 530}deg) scale(${s(0.5)})` },
+        { opacity: 0.12 * fade(i), transform: `translate(${orbit(base + 610, 1)}) rotate(${base + 610}deg) scale(${s(0.2)})` },
+        { opacity: 0,              transform: `translate(${orbit(base + 700, 0)}) rotate(${base + 700}deg) scale(${s(0.05)})` },
+      ], {
+        duration: 1100,
+        delay: i * 55,
+        easing: 'cubic-bezier(0.45, 0.0, 0.6, 0.1)',
+        fill: 'both',
+      })
+    })
+
+    // 全部轨迹层动画结束后统一清理
+    Promise.allSettled(trailAnims.map(a => a.finished))
+      .then(() => trailLayers.forEach(l => l.remove()))
   }
 
   // --- 动画结束后执行实际删除 ---
   setTimeout(() => {
-    // 移除叠加层
-    if (overlay.parentNode) {
-      overlay.parentNode.removeChild(overlay)
-    }
     vortexDeleting.value = false
     if (noteStore.currentNoteId === id) {
       noteStore.deleteNote(id)
@@ -184,9 +208,7 @@ const wordCount = computed(() => {
 // get current note
 const currentNote = computed(() => noteStore.currentNote)
 
-// 导航方向，用于滑动过渡动画
-const navDirection = ref<'left' | 'right' | 'up' | 'down'>('right')
-
+// 导航方向由 store 统一维护（noteStore.navDirection），模板直接绑定，用于滑动过渡动画
 // 追踪目录切换，用于决定垂直滑动方向
 let pendingDirChange: 'up' | 'down' | null = null
 
@@ -202,18 +224,13 @@ watch(() => noteStore.filterDirectoryId, (newId, oldId) => {
 watch(
   () => currentNote.value?.id,
   async (newId, oldId) => {
-    // 判断导航方向（优先使用目录切换方向）
+    // 目录切换方向（up/down）：由组件根据目录位置推断并覆盖 store 方向
     if (pendingDirChange) {
-      navDirection.value = pendingDirChange
+      noteStore.navDirection = pendingDirChange
       pendingDirChange = null
-    } else if (oldId && newId && newId !== oldId) {
-      const list = noteStore.activeNoteList
-      const oldIndex = list.findIndex(n => n.id === oldId)
-      const newIndex = list.findIndex(n => n.id === newId)
-      if (oldIndex >= 0 && newIndex >= 0) {
-        navDirection.value = newIndex > oldIndex ? 'right' : 'left'
-      }
     }
+    // 其余导航（上一页/下一页/新建/删除）方向已由 store 的导航函数显式设置，
+    // 模板直接绑定 noteStore.navDirection，无需在此推断（避免 watch 合并/跳过导致方向残留）
 
     // 如果是从源码模式切换笔记，需要先同步保存当前笔记的编辑内容
     if (isSourceMode.value && oldId && newId !== oldId) {
@@ -639,7 +656,7 @@ function handleToggleSourceMode() {
       <div
         class="editor-content-wrapper"
         :key="currentNote?.id"
-        :class="[`dir-${navDirection}`, { 'vortex-deleting': vortexDeleting }]"
+        :class="[`dir-${noteStore.navDirection}`, { 'vortex-deleting': vortexDeleting }]"
       >
         <!-- 源码模式编辑 -->
         <textarea
@@ -1414,15 +1431,36 @@ function handleToggleSourceMode() {
   transform: translateX(-50%) translateY(-10px);
 }
 
-/* 删除闪光叠加层 */
-:deep(.delete-flash-overlay) {
+/* 彩虹漩涡轨迹层：环形色带，靠 transform 旋转带动色带流动（GPU 合成，零逐帧重绘） */
+:deep(.vortex-rainbow) {
   position: absolute;
-  inset: 0;
-  z-index: 100;
+  inset: -15%;
   pointer-events: none;
-  background: radial-gradient(circle at center, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.6) 30%, rgba(200,220,255,0.3) 60%, transparent 80%);
-  mix-blend-mode: overlay;
-  border-radius: inherit;
+  border-radius: 50%;
+  z-index: 100;
+  background: conic-gradient(
+    from 0deg,
+    #ff3b3b, #ff9d3b, #fff23b, #6dff3b,
+    #3bffe0, #3b8bff, #a13bff, #ff3bd6,
+    #ff3b3b
+  );
+  -webkit-mask-image: radial-gradient(circle at 50% 50%,
+    rgba(0,0,0,0.15) 0%,
+    rgba(0,0,0,0.9) 26%,
+    rgba(0,0,0,1) 38%,
+    rgba(0,0,0,0.7) 52%,
+    rgba(0,0,0,0) 68%
+  );
+  mask-image: radial-gradient(circle at 50% 50%,
+    rgba(0,0,0,0.15) 0%,
+    rgba(0,0,0,0.9) 26%,
+    rgba(0,0,0,1) 38%,
+    rgba(0,0,0,0.7) 52%,
+    rgba(0,0,0,0) 68%
+  );
+  filter: blur(1.5px) saturate(1.8);
+  mix-blend-mode: normal;
+  will-change: transform, opacity;
 }
 
 /* 漩涡删除期间阻止交互 */
