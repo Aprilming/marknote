@@ -2005,12 +2005,8 @@ defineExpose({
   background: rgba(255, 255, 255, 0.1);
   color: var(--color-text-secondary);
   cursor: pointer;
-  opacity: 0;
-  transition: opacity var(--duration-fast) var(--ease-out), background var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out);
-}
-
-:deep(.tiptap pre:hover .code-block-copy-btn) {
   opacity: 1;
+  transition: background var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out);
 }
 
 :deep(.code-block-copy-btn:hover) {

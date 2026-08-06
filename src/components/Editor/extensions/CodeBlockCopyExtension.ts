@@ -5,11 +5,6 @@ import { Decoration, DecorationSet } from '@tiptap/pm/view'
 
 const codeBlockCopyKey = new PluginKey('codeBlockCopy')
 
-function selectionTouchesNode(from: number, to: number, nodeStart: number, nodeSize: number) {
-  const nodeEnd = nodeStart + nodeSize
-  return from >= nodeStart && to <= nodeEnd
-}
-
 export const CodeBlockCopyExtension = Extension.create({
   name: 'codeBlockCopy',
 
@@ -23,10 +18,6 @@ export const CodeBlockCopyExtension = Extension.create({
 
             state.doc.forEach((node, offset) => {
               if (node.type.name === 'codeBlock') {
-                if (selectionTouchesNode(state.selection.from, state.selection.to, offset, node.nodeSize)) {
-                  return
-                }
-
                 const copyButton = Decoration.widget(
                   offset + 1,
                   () => {

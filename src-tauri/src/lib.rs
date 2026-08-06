@@ -46,6 +46,53 @@ extern "C" {
         >,
         user_info: *mut std::ffi::c_void,
     ) -> i32;
+    fn CGGetActiveDisplayList(
+        max_displays: u32,
+        active_displays: *mut u32,
+        display_count: *mut u32,
+    ) -> i32;
+    fn CGDisplayBounds(display: u32) -> CGRect;
+    fn CGRectContainsPoint(rect: CGRect, point: CGPoint) -> bool;
+    fn CGEventCreate(allocator: *const std::ffi::c_void) -> *mut std::ffi::c_void;
+    fn CGEventGetLocation(event: *mut std::ffi::c_void) -> CGPoint;
+    fn CFRelease(cf: *const std::ffi::c_void);
+}
+
+/// CoreGraphics 几何结构（macOS 原生坐标，单位 points，原点在主屏左下）
+#[cfg(target_os = "macos")]
+#[repr(C)]
+#[derive(Clone, Copy)]
+struct CGPoint {
+    x: f64,
+    y: f64,
+}
+
+#[cfg(target_os = "macos")]
+#[repr(C)]
+#[derive(Clone, Copy)]
+struct CGSize {
+    width: f64,
+    height: f64,
+}
+
+#[cfg(target_os = "macos")]
+#[repr(C)]
+#[derive(Clone, Copy)]
+struct CGRect {
+    origin: CGPoint,
+    size: CGSize,
+}
+
+// 让 CGPoint 可作为 objc2 msg_send! 的参数（用于 NSWindow setFrameOrigin:）
+#[cfg(target_os = "macos")]
+unsafe impl objc2::encode::Encode for CGPoint {
+    const ENCODING: objc2::encode::Encoding = objc2::encode::Encoding::Struct(
+        "CGPoint",
+        &[
+            <f64 as objc2::encode::Encode>::ENCODING,
+            <f64 as objc2::encode::Encode>::ENCODING,
+        ],
+    );
 }
 
 #[cfg(target_os = "macos")]
@@ -378,6 +425,12 @@ fn show_window_current_space_impl(app: &AppHandle) {
         let ns_window = window.ns_window().unwrap() as id;
         let ns_window_ptr = ns_window as *mut AnyObject;
 
+        // 多显示器时：把窗口移到鼠标所在显示器中心，并将其加入该显示器的 active Space
+        let cursor_display = cursor_display_info();
+        if let Some((_, bounds)) = cursor_display {
+            move_window_to_center(&window, ns_window_ptr, bounds);
+        }
+
         let alpha_state = app.state::<WindowAlphaState>();
         let saved_alpha = *alpha_state.alpha.lock().unwrap();
         let restore_alpha = saved_alpha.max(0.1).min(1.0) as f64;
@@ -390,9 +443,10 @@ fn show_window_current_space_impl(app: &AppHandle) {
             let _: () = msg_send![ns_window_ptr, setAlphaValue: restore_alpha];
         }
 
-        // 延迟 100ms 等待 Window Server 完全处理窗口，然后用 CGS 加入当前 Space
+        // 延迟 100ms 等待 Window Server 完全处理窗口，然后用 CGS 加入鼠标所在显示器的 Space
         let app_handle = app.clone();
         let ns_window_ptr_addr = ns_window_ptr as usize;
+        let cursor_display_id = cursor_display.map(|(id, _)| id);
         std::thread::spawn(move || {
             std::thread::sleep(std::time::Duration::from_millis(100));
             let _ = app_handle.run_on_main_thread(move || {
@@ -416,9 +470,11 @@ fn show_window_current_space_impl(app: &AppHandle) {
                         let sym0 = CString::new("CGSMainConnectionID").unwrap();
                         let sym1 = CString::new("CGSGetActiveSpace").unwrap();
                         let sym2 = CString::new("CGSAddWindowsToSpaces").unwrap();
+                        let sym3 = CString::new("CGSGetDisplayActiveSpace").unwrap();
                         let ptr0 = libc::dlsym(handle, sym0.as_ptr());
                         let ptr1 = libc::dlsym(handle, sym1.as_ptr());
                         let ptr2 = libc::dlsym(handle, sym2.as_ptr());
+                        let ptr3 = libc::dlsym(handle, sym3.as_ptr());
                         if !ptr0.is_null() && !ptr1.is_null() && !ptr2.is_null() {
                             type Fn0 = extern "C" fn() -> u32;
                             type Fn1 = extern "C" fn(u32) -> u64;
@@ -429,7 +485,15 @@ fn show_window_current_space_impl(app: &AppHandle) {
 
                             let window_id: u32 = msg_send![ptr, windowNumber];
                             let cid = cgs_main_conn();
-                            let active_space = cgs_get_space(cid);
+                            // 优先取鼠标所在显示器的 active Space；CGSGetActiveSpace 多显示器下指向主屏，窗口不会跟随鼠标
+                            let active_space = match cursor_display_id {
+                                Some(display_id) if !ptr3.is_null() => {
+                                    type Fn3 = extern "C" fn(u32, u32) -> u64;
+                                    let cgs_get_display_space: Fn3 = std::mem::transmute(ptr3);
+                                    cgs_get_display_space(cid, display_id)
+                                }
+                                _ => cgs_get_space(cid),
+                            };
 
                             let cf_lib = CString::new("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation").unwrap();
                             let cf_handle = libc::dlopen(cf_lib.as_ptr(), libc::RTLD_LAZY);
@@ -816,6 +880,79 @@ async fn set_window_alpha(
     Ok(())
 }
 
+/// 判断窗口矩形是否与某显示器相交
+#[cfg(target_os = "macos")]
+fn window_intersects_monitor(
+    pos: &tauri::PhysicalPosition<i32>,
+    size: &tauri::PhysicalSize<u32>,
+    monitor: &tauri::Monitor,
+) -> bool {
+    let mpos = *monitor.position();
+    let msize = *monitor.size();
+    let window_right = pos.x as i64 + size.width as i64;
+    let window_bottom = pos.y as i64 + size.height as i64;
+    let m_right = mpos.x as i64 + msize.width as i64;
+    let m_bottom = mpos.y as i64 + msize.height as i64;
+    (window_right > mpos.x as i64)
+        && ((pos.x as i64) < m_right)
+        && (window_bottom > mpos.y as i64)
+        && ((pos.y as i64) < m_bottom)
+}
+
+/// 获取鼠标当前所在显示器的 CGDirectDisplayID 及其屏幕区域（Quartz 全局坐标，points）
+#[cfg(target_os = "macos")]
+fn cursor_display_info() -> Option<(u32, CGRect)> {
+    // CGEventGetLocation 返回 Quartz 全局坐标，与 CGDisplayBounds 同一坐标系
+    let point = unsafe {
+        let event = CGEventCreate(std::ptr::null());
+        if event.is_null() {
+            return None;
+        }
+        let loc = CGEventGetLocation(event);
+        CFRelease(event as *const std::ffi::c_void);
+        loc
+    };
+
+    let mut count: u32 = 0;
+    if unsafe { CGGetActiveDisplayList(0, std::ptr::null_mut(), &mut count) } != 0 || count == 0 {
+        return None;
+    }
+    let mut ids = vec![0u32; count as usize];
+    if unsafe { CGGetActiveDisplayList(count, ids.as_mut_ptr(), &mut count) } != 0 {
+        return None;
+    }
+    ids.iter().copied().find_map(|id| {
+        let bounds = unsafe { CGDisplayBounds(id) };
+        if unsafe { CGRectContainsPoint(bounds, point) } {
+            Some((id, bounds))
+        } else {
+            None
+        }
+    })
+}
+
+/// 将窗口移动到指定屏幕区域的中心（原生坐标，避免 Tauri 坐标转换误差）
+#[cfg(target_os = "macos")]
+fn move_window_to_center(
+    window: &tauri::WebviewWindow,
+    ns_window_ptr: *mut objc2::runtime::AnyObject,
+    bounds: CGRect,
+) {
+    use objc2::msg_send;
+
+    let Ok(size) = window.outer_size() else { return };
+    let Ok(scale) = window.scale_factor() else { return };
+    let win_w = size.width as f64 / scale;
+    let win_h = size.height as f64 / scale;
+    let origin = CGPoint {
+        x: bounds.origin.x + (bounds.size.width - win_w) / 2.0,
+        y: bounds.origin.y + (bounds.size.height - win_h) / 2.0,
+    };
+    unsafe {
+        let _: () = msg_send![ns_window_ptr, setFrameOrigin: origin];
+    }
+}
+
 /// 检查窗口是否在可见显示区域内，若不在则居中到主屏幕
 #[cfg(target_os = "macos")]
 fn ensure_window_visible(app: &AppHandle) {
@@ -828,19 +965,9 @@ fn ensure_window_visible(app: &AppHandle) {
     }
 
     // 检查窗口是否与任一显示器的可见区域相交
-    let window_right = (pos.x as i64) + (size.width as i64);
-    let window_bottom = (pos.y as i64) + (size.height as i64);
-
-    let is_on_screen = monitors.iter().any(|m| {
-        let mpos = m.position();
-        let msize = m.size();
-        let m_right = (mpos.x as i64) + (msize.width as i64);
-        let m_bottom = (mpos.y as i64) + (msize.height as i64);
-        (window_right > mpos.x as i64)
-            && ((pos.x as i64) < m_right)
-            && (window_bottom > mpos.y as i64)
-            && ((pos.y as i64) < m_bottom)
-    });
+    let is_on_screen = monitors
+        .iter()
+        .any(|m| window_intersects_monitor(&pos, &size, m));
 
     if !is_on_screen {
         // 窗口不在任何可见显示器内，居中到第一个显示器
