@@ -1,7 +1,9 @@
 pub mod autostart;
 
+use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use std::sync::OnceLock;
 use tauri::{AppHandle, Manager, State};
@@ -95,6 +97,29 @@ unsafe impl objc2::encode::Encode for CGPoint {
     );
 }
 
+// 让 CGSize / CGRect 可作为 objc2 msg_send! 的返回值（用于读取 NSWindow frame）
+#[cfg(target_os = "macos")]
+unsafe impl objc2::encode::Encode for CGSize {
+    const ENCODING: objc2::encode::Encoding = objc2::encode::Encoding::Struct(
+        "CGSize",
+        &[
+            <f64 as objc2::encode::Encode>::ENCODING,
+            <f64 as objc2::encode::Encode>::ENCODING,
+        ],
+    );
+}
+
+#[cfg(target_os = "macos")]
+unsafe impl objc2::encode::Encode for CGRect {
+    const ENCODING: objc2::encode::Encoding = objc2::encode::Encoding::Struct(
+        "CGRect",
+        &[
+            <CGPoint as objc2::encode::Encode>::ENCODING,
+            <CGSize as objc2::encode::Encode>::ENCODING,
+        ],
+    );
+}
+
 #[cfg(target_os = "macos")]
 static DISPLAY_APP_HANDLE: OnceLock<AppHandle> = OnceLock::new();
 
@@ -114,6 +139,13 @@ struct GlobalShortcutState {
 /// 用户设置的窗口透明度（失焦时需要补偿）
 struct WindowAlphaState {
     alpha: Mutex<f64>,
+}
+
+/// 每个「显示器 + Space」的窗口最后位置（[x, y]，Quartz 全局坐标 points，原点在主屏左下）。
+/// ready 用于跳过启动阶段 window-state 恢复 / 强制居中产生的 Moved 事件，避免误记或误写盘。
+struct WindowPositionState {
+    positions: Mutex<HashMap<String, [f64; 2]>>,
+    ready: AtomicBool,
 }
 
 
@@ -425,10 +457,10 @@ fn show_window_current_space_impl(app: &AppHandle) {
         let ns_window = window.ns_window().unwrap() as id;
         let ns_window_ptr = ns_window as *mut AnyObject;
 
-        // 多显示器时：把窗口移到鼠标所在显示器中心，并将其加入该显示器的 active Space
+        // 多显示器时：优先恢复到鼠标所在显示器当前 Space 的上一次位置，没有则居中
         let cursor_display = cursor_display_info();
-        if let Some((_, bounds)) = cursor_display {
-            move_window_to_center(&window, ns_window_ptr, bounds);
+        if let Some((display_id, bounds)) = cursor_display {
+            restore_window_position(app, &window, ns_window_ptr, display_id, bounds);
         }
 
         let alpha_state = app.state::<WindowAlphaState>();
@@ -899,20 +931,9 @@ fn window_intersects_monitor(
         && ((pos.y as i64) < m_bottom)
 }
 
-/// 获取鼠标当前所在显示器的 CGDirectDisplayID 及其屏幕区域（Quartz 全局坐标，points）
+/// 获取某个点所在的显示器 CGDirectDisplayID 及其屏幕区域（Quartz 全局坐标，points）
 #[cfg(target_os = "macos")]
-fn cursor_display_info() -> Option<(u32, CGRect)> {
-    // CGEventGetLocation 返回 Quartz 全局坐标，与 CGDisplayBounds 同一坐标系
-    let point = unsafe {
-        let event = CGEventCreate(std::ptr::null());
-        if event.is_null() {
-            return None;
-        }
-        let loc = CGEventGetLocation(event);
-        CFRelease(event as *const std::ffi::c_void);
-        loc
-    };
-
+fn display_info_at_point(point: CGPoint) -> Option<(u32, CGRect)> {
     let mut count: u32 = 0;
     if unsafe { CGGetActiveDisplayList(0, std::ptr::null_mut(), &mut count) } != 0 || count == 0 {
         return None;
@@ -931,6 +952,72 @@ fn cursor_display_info() -> Option<(u32, CGRect)> {
     })
 }
 
+/// 获取与窗口矩形相交的显示器 CGDirectDisplayID 及其屏幕区域（Quartz 全局坐标，points）
+#[cfg(target_os = "macos")]
+fn display_intersecting_rect(origin: CGPoint, size: CGSize) -> Option<(u32, CGRect)> {
+    let mut count: u32 = 0;
+    if unsafe { CGGetActiveDisplayList(0, std::ptr::null_mut(), &mut count) } != 0 || count == 0 {
+        return None;
+    }
+    let mut ids = vec![0u32; count as usize];
+    if unsafe { CGGetActiveDisplayList(count, ids.as_mut_ptr(), &mut count) } != 0 {
+        return None;
+    }
+    ids.iter().copied().find_map(|id| {
+        let bounds = unsafe { CGDisplayBounds(id) };
+        if rect_visible_in_bounds(origin, size, bounds) {
+            Some((id, bounds))
+        } else {
+            None
+        }
+    })
+}
+
+/// 获取鼠标当前所在显示器的 CGDirectDisplayID 及其屏幕区域（Quartz 全局坐标，points）
+#[cfg(target_os = "macos")]
+fn cursor_display_info() -> Option<(u32, CGRect)> {
+    // CGEventGetLocation 返回 Quartz 全局坐标，与 CGDisplayBounds 同一坐标系
+    let point = unsafe {
+        let event = CGEventCreate(std::ptr::null());
+        if event.is_null() {
+            return None;
+        }
+        let loc = CGEventGetLocation(event);
+        CFRelease(event as *const std::ffi::c_void);
+        loc
+    };
+
+    display_info_at_point(point)
+}
+
+/// 读取窗口在 points 下的尺寸（外层尺寸 / scale）
+#[cfg(target_os = "macos")]
+fn window_size_points(window: &tauri::WebviewWindow) -> Option<CGSize> {
+    let size = window.outer_size().ok()?;
+    let scale = window.scale_factor().ok()?;
+    Some(CGSize {
+        width: size.width as f64 / scale,
+        height: size.height as f64 / scale,
+    })
+}
+
+/// 读取 NSWindow 的 frame（Quartz 全局坐标 points，原点在屏幕左下）
+#[cfg(target_os = "macos")]
+fn ns_window_frame(ns_window_ptr: *mut objc2::runtime::AnyObject) -> Option<(CGPoint, CGSize)> {
+    use objc2::msg_send;
+    let frame: CGRect = unsafe { msg_send![ns_window_ptr, frame] };
+    Some((frame.origin, frame.size))
+}
+
+/// 将窗口移动到指定原点（Quartz 全局坐标 points）
+#[cfg(target_os = "macos")]
+fn move_window_to_origin(ns_window_ptr: *mut objc2::runtime::AnyObject, origin: CGPoint) {
+    use objc2::msg_send;
+    unsafe {
+        let _: () = msg_send![ns_window_ptr, setFrameOrigin: origin];
+    }
+}
+
 /// 将窗口移动到指定屏幕区域的中心（原生坐标，避免 Tauri 坐标转换误差）
 #[cfg(target_os = "macos")]
 fn move_window_to_center(
@@ -938,19 +1025,174 @@ fn move_window_to_center(
     ns_window_ptr: *mut objc2::runtime::AnyObject,
     bounds: CGRect,
 ) {
-    use objc2::msg_send;
-
-    let Ok(size) = window.outer_size() else { return };
-    let Ok(scale) = window.scale_factor() else { return };
-    let win_w = size.width as f64 / scale;
-    let win_h = size.height as f64 / scale;
+    let Some(size) = window_size_points(window) else { return };
     let origin = CGPoint {
-        x: bounds.origin.x + (bounds.size.width - win_w) / 2.0,
-        y: bounds.origin.y + (bounds.size.height - win_h) / 2.0,
+        x: bounds.origin.x + (bounds.size.width - size.width) / 2.0,
+        y: bounds.origin.y + (bounds.size.height - size.height) / 2.0,
     };
-    unsafe {
-        let _: () = msg_send![ns_window_ptr, setFrameOrigin: origin];
+    move_window_to_origin(ns_window_ptr, origin);
+}
+
+/// 判断窗口矩形（points）是否与显示器区域相交
+#[cfg(target_os = "macos")]
+fn rect_visible_in_bounds(origin: CGPoint, size: CGSize, bounds: CGRect) -> bool {
+    let right = origin.x + size.width;
+    let top = origin.y + size.height;
+    right > bounds.origin.x
+        && origin.x < bounds.origin.x + bounds.size.width
+        && top > bounds.origin.y
+        && origin.y < bounds.origin.y + bounds.size.height
+}
+
+/// 从 SkyLight 私有框架动态取一个符号
+#[cfg(target_os = "macos")]
+fn skylight_dlsym(name: &str) -> *mut std::ffi::c_void {
+    use std::ffi::CString;
+    let lib = CString::new("/System/Library/PrivateFrameworks/SkyLight.framework/SkyLight").unwrap();
+    let handle = unsafe { libc::dlopen(lib.as_ptr(), libc::RTLD_LAZY) };
+    if handle.is_null() {
+        return std::ptr::null_mut();
     }
+    let sym = CString::new(name).unwrap();
+    unsafe { libc::dlsym(handle, sym.as_ptr()) }
+}
+
+/// 获取 SkyLight 主连接 ID
+#[cfg(target_os = "macos")]
+fn cgs_main_connection_id() -> Option<u32> {
+    static FN: OnceLock<Option<extern "C" fn() -> u32>> = OnceLock::new();
+    let f = FN.get_or_init(|| {
+        let ptr = skylight_dlsym("CGSMainConnectionID");
+        if ptr.is_null() {
+            None
+        } else {
+            Some(unsafe { std::mem::transmute(ptr) })
+        }
+    });
+    (*f).map(|f| f())
+}
+
+/// 获取指定显示器当前活动 Space 的 ID
+#[cfg(target_os = "macos")]
+fn cgs_active_space_for_display(display_id: u32) -> Option<u64> {
+    let cid = cgs_main_connection_id()?;
+
+    // 优先取指定显示器的 active Space；部分系统无该符号，回退到 CGSGetActiveSpace
+    static DISPLAY_FN: OnceLock<Option<unsafe extern "C" fn(u32, u32) -> u64>> = OnceLock::new();
+    let display_fn = *DISPLAY_FN.get_or_init(|| {
+        let ptr = skylight_dlsym("CGSGetDisplayActiveSpace");
+        if ptr.is_null() {
+            None
+        } else {
+            Some(unsafe { std::mem::transmute(ptr) })
+        }
+    });
+    if let Some(f) = display_fn {
+        return Some(unsafe { f(cid, display_id) });
+    }
+
+    // 回退：取当前 active Space（老系统 / 无显示器维度 API 时）
+    static ACTIVE_FN: OnceLock<Option<extern "C" fn(u32) -> u64>> = OnceLock::new();
+    let active_fn = *ACTIVE_FN.get_or_init(|| {
+        let ptr = skylight_dlsym("CGSGetActiveSpace");
+        if ptr.is_null() {
+            None
+        } else {
+            Some(unsafe { std::mem::transmute(ptr) })
+        }
+    });
+    active_fn.map(|f| f(cid))
+}
+
+/// 唤起时恢复窗口位置：有该 Space 的上次位置则恢复，否则居中
+#[cfg(target_os = "macos")]
+fn restore_window_position(
+    app: &AppHandle,
+    window: &tauri::WebviewWindow,
+    ns_window_ptr: *mut objc2::runtime::AnyObject,
+    display_id: u32,
+    bounds: CGRect,
+) {
+    let saved = cgs_active_space_for_display(display_id).and_then(|space_id| {
+        let key = format!("{}:{}", display_id, space_id);
+        app.state::<WindowPositionState>()
+            .positions
+            .lock()
+            .unwrap()
+            .get(&key)
+            .copied()
+    });
+
+    if let Some([x, y]) = saved {
+        let origin = CGPoint { x, y };
+        if let Some(size) = window_size_points(window) {
+            if rect_visible_in_bounds(origin, size, bounds) {
+                move_window_to_origin(ns_window_ptr, origin);
+                return;
+            }
+        }
+    }
+    move_window_to_center(window, ns_window_ptr, bounds);
+}
+
+/// 记录窗口当前所在「显示器 + Space」的位置（Moved / Resized 时调用）
+#[cfg(target_os = "macos")]
+fn remember_window_position<R: tauri::Runtime>(window: &tauri::Window<R>) {
+    if !window
+        .state::<WindowPositionState>()
+        .ready
+        .load(Ordering::Relaxed)
+    {
+        return;
+    }
+    let Ok(ns_window) = window.ns_window() else { return };
+    let ns_window_ptr = ns_window as *mut objc2::runtime::AnyObject;
+    let Some((origin, size)) = ns_window_frame(ns_window_ptr) else { return };
+    if size.width <= 0.0 || size.height <= 0.0 {
+        return;
+    }
+    let Some((display_id, _)) = display_intersecting_rect(origin, size) else { return };
+    let Some(space_id) = cgs_active_space_for_display(display_id) else { return };
+    window
+        .state::<WindowPositionState>()
+        .positions
+        .lock()
+        .unwrap()
+        .insert(
+            format!("{}:{}", display_id, space_id),
+            [origin.x, origin.y],
+        );
+}
+
+/// 持久化位置表到磁盘（失焦 / 关闭时调用）
+#[cfg(target_os = "macos")]
+fn persist_window_positions<R: tauri::Runtime>(window: &tauri::Window<R>) {
+    if !window
+        .state::<WindowPositionState>()
+        .ready
+        .load(Ordering::Relaxed)
+    {
+        return;
+    }
+    let Ok(dir) = window.app_handle().path().app_config_dir() else { return };
+    let positions = window
+        .state::<WindowPositionState>()
+        .positions
+        .lock()
+        .unwrap()
+        .clone();
+    if let Ok(json) = serde_json::to_string_pretty(&positions) {
+        let _ = fs::write(dir.join("window_positions.json"), json);
+    }
+}
+
+/// 从磁盘加载位置表
+#[cfg(target_os = "macos")]
+fn load_window_positions(path: &std::path::Path) -> HashMap<String, [f64; 2]> {
+    fs::read_to_string(path)
+        .ok()
+        .and_then(|s| serde_json::from_str::<HashMap<String, [f64; 2]>>(&s).ok())
+        .unwrap_or_default()
 }
 
 /// 检查窗口是否在可见显示区域内，若不在则居中到主屏幕
@@ -1090,6 +1332,26 @@ pub fn run() {
         .manage(WindowAlphaState {
             alpha: Mutex::new(1.0),
         })
+        .manage(WindowPositionState {
+            positions: Mutex::new(HashMap::new()),
+            ready: AtomicBool::new(false),
+        })
+        .on_window_event(|window, event| {
+            #[cfg(target_os = "macos")]
+            {
+                match event {
+                    tauri::WindowEvent::Moved(_) | tauri::WindowEvent::Resized(_) => {
+                        remember_window_position(window);
+                    }
+                    tauri::WindowEvent::Focused(false) => {
+                        persist_window_positions(window);
+                    }
+                    _ => {}
+                }
+            }
+            #[cfg(not(target_os = "macos"))]
+            let _ = (window, event);
+        })
         .setup(move |app| {
             // 隐藏 macOS Dock 图标
             #[cfg(target_os = "macos")]
@@ -1145,6 +1407,25 @@ pub fn run() {
                 if let Some(w) = app.get_webview_window("main") {
                     w.center().ok();
                 }
+
+                // 加载各「显示器 + Space」的历史位置
+                if let Ok(dir) = app.path().app_config_dir() {
+                    let positions = load_window_positions(&dir.join("window_positions.json"));
+                    *app.state::<WindowPositionState>().positions.lock().unwrap() = positions;
+                }
+
+                // 启动阶段的强制居中 / window-state 恢复会触发 Moved，延迟启用位置记录
+                let handle = app.handle().clone();
+                std::thread::spawn(move || {
+                    std::thread::sleep(std::time::Duration::from_millis(1000));
+                    let inner = handle.clone();
+                    let _ = handle.run_on_main_thread(move || {
+                        inner
+                            .state::<WindowPositionState>()
+                            .ready
+                            .store(true, Ordering::Relaxed);
+                    });
+                });
             }
 
             Ok(())
