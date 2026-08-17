@@ -85,11 +85,28 @@ const HardBreakStable = HardBreak.extend({
   },
 })
 
+// markdown 语法本身无法表达“空段落”（空行只会被当作段落分隔，往返后会丢失），
+// 这里把空段落（或仅含硬换行的段落）序列化为 <p><br></p>，
+// 使空行在源码/渲染模式间稳定往返保留
+const isEmptyParagraph = (node: any): boolean => {
+  if (node.childCount === 0) return true
+  if (node.childCount === 1) {
+    const child = node.firstChild
+    return child?.type.name === 'hardBreak' || child?.text === ''
+  }
+  return false
+}
+
 const AlignedParagraph = Paragraph.extend({
   addStorage() {
     return {
       markdown: {
         serialize(state: any, node: any) {
+          if (isEmptyParagraph(node)) {
+            state.write('<p><br></p>')
+            state.closeBlock(node)
+            return
+          }
           renderAlignedMarkdownBlock(state, node, defaultMarkdownSerializer.nodes.paragraph)
         },
         parse: {},
