@@ -1069,22 +1069,6 @@ const editor = useEditor({
         return true
       }
 
-      // 普通段落内 Enter 插入硬换行（<br>），使换行在源码/渲染模式切换时稳定保留；
-      // Shift+Enter 仍走默认的段落拆分；列表项内保持默认结构（新建/退出列表项）
-      if (event.key === 'Enter' && !event.shiftKey) {
-        const { $from } = view.state.selection
-        let inListItem = false
-        for (let d = $from.depth; d > 0; d--) {
-          const name = $from.node(d).type.name
-          if (name === 'listItem' || name === 'taskItem') { inListItem = true; break }
-        }
-        if ($from.parent.type.name === 'paragraph' && !inListItem) {
-          event.preventDefault()
-          view.dispatch(view.state.tr.replaceSelectionWith(view.state.schema.nodes.hardBreak.create()).scrollIntoView())
-          return true
-        }
-      }
-
       if ((event.metaKey || event.ctrlKey) && event.key === 'a') {
         event.preventDefault()
         const { state, dispatch } = view
