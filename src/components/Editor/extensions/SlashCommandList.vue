@@ -66,6 +66,9 @@ const COMMAND_GROUPS = [
       { titleKey: 'slash.quote', command: 'blockquote', icon: '"' },
       { titleKey: 'slash.code', command: 'code', icon: '<>' },
       { titleKey: 'slash.table', command: 'table', icon: '⊞' },
+      { titleKey: 'slash.date', command: 'date', icon: '📅' },
+      { titleKey: 'slash.time', command: 'time', icon: '🕐' },
+      { titleKey: 'slash.datetime', command: 'datetime', icon: '🕒' },
     ]
   },
   {
@@ -114,6 +117,21 @@ const hasMoreEmojis = computed(() => {
   return filteredEmojis.value.length > (emojiPage.value + 1) * emojiPageSize
 })
 
+// 日期时间工具
+function pad(n: number): string {
+  return n.toString().padStart(2, '0')
+}
+
+function currentDate(): string {
+  const d = new Date()
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
+function currentTime(): string {
+  const d = new Date()
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+}
+
 // 执行命令
 function runCommand(command: string) {
   const editor = props.editor
@@ -149,6 +167,15 @@ function runCommand(command: string) {
       break
     case 'ipinfo':
       handleIpInfo()
+      break
+    case 'date':
+      editor.chain().focus().insertContent(currentDate()).run()
+      break
+    case 'time':
+      editor.chain().focus().insertContent(currentTime()).run()
+      break
+    case 'datetime':
+      editor.chain().focus().insertContent(`${currentDate()} ${currentTime()}`).run()
       break
   }
 }

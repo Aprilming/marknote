@@ -260,6 +260,9 @@ export default {
   'slash.backToCommands': 'Back to commands',
   'slash.noEmoji': 'No matching emoji',
   'slash.continueTyping': 'Keep typing to search...',
+  'slash.date': 'Date',
+  'slash.time': 'Time',
+  'slash.datetime': 'Date Time',
   'slash.ipinfo': 'IP Info',
   'slash.tools': 'Tools',
 
