@@ -4,7 +4,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window'
 import { PhysicalPosition } from '@tauri-apps/api/dpi'
 import { open, save } from '@tauri-apps/plugin-dialog'
 import { readTextFile, writeTextFile } from '@tauri-apps/plugin-fs'
-import { useNoteStore } from '@/stores/noteStore'
+import { useNoteStore, extractTitle } from '@/stores/noteStore'
 import { useSettingStore } from '@/stores/settingStore'
 import { setNativeDialogOpen } from '@/stores/dialogStore'
 
@@ -17,6 +17,15 @@ const appWindow = isTauri ? getCurrentWindow() : null
 
 // 响应式追踪置顶状态
 const isPinned = computed(() => settingStore.settings.alwaysOnTop)
+
+// 当前笔记标题：取正文首个有内容的行，去掉 Markdown 语法只显示文字
+// 无实际内容时不显示（extractTitle 兜底返回 'Untitled'，这里视为空）
+const noteTitle = computed(() => {
+  const content = noteStore.currentNote?.content
+  if (!content) return ''
+  const title = extractTitle(content)
+  return title === 'Untitled' ? '' : title
+})
 
 // 标题栏行为：auto-hide 默认隐藏鼠标悬停时显示，always-show 始终显示
 const isVisible = ref(false)
@@ -213,6 +222,10 @@ onUnmounted(() => {
       </button>
     </div>
 
+    <!-- 当前笔记标题 -->
+    <div v-if="noteTitle" class="note-title" :title="noteTitle">{{ noteTitle }}</div>
+    <div class="title-bar-spacer"></div>
+
     <!-- Right Actions -->
     <div class="right-actions">
       <button
@@ -344,6 +357,23 @@ onUnmounted(() => {
 
 .window-btn.fullscreen {
   background-color: #28c840;
+}
+
+/* 弹性占位，撑开标题与右侧操作区 */
+.title-bar-spacer {
+  flex: 1;
+}
+
+/* 当前笔记标题 - 靠左，超宽省略 */
+.note-title {
+  max-width: 40%;
+  min-width: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* Search Container */

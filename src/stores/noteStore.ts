@@ -5,6 +5,40 @@ import { useFileSystem } from '@/composables/useFileSystem'
 import { useDirectoryStore } from '@/stores/directoryStore'
 import i18n from '@/i18n'
 
+const TITLE_MAX_LENGTH = 50
+const TITLE_SCAN_LINES = 20
+
+const HTML_ENTITIES: Record<string, string> = {
+  '&nbsp;': ' ', '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&#39;': "'",
+}
+
+/** 去掉一行的 Markdown / HTML 语法，只保留纯文本 */
+function stripMarkdown(line: string): string {
+  return line
+    .replace(/^\s*(?:```|~~~).*$/, '')                   // 代码块围栏
+    .replace(/<[^>]+>/g, '')                             // HTML 标签（含 <p><br></p> 空段落）
+    .replace(/^\s*#{1,6}\s+/, '')                        // 标题
+    .replace(/^\s*>+\s*/, '')                            // 引用
+    .replace(/^\s*(?:[-*+]|\d+[.)])\s+/, '')             // 无序 / 有序列表
+    .replace(/^\s*\[[ xX]\]\s*/, '')                     // 任务列表
+    .replace(/^\s*([-*_])(?:\s*\1){2,}\s*$/, '')         // 分隔线
+    .replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1')           // 链接 / 图片，仅保留描述
+    .replace(/(\*\*\*|\*\*|__|~~|==|`+)(.+?)\1/g, '$2')  // 粗体 / 斜体 / 删除线 / 高亮 / 行内代码
+    .replace(/[*_`~]/g, '')                              // 未成对的残留标记
+    .replace(/\\([\\`*_{}[\]()#+\-.!>~|])/g, '$1')       // 转义字符
+    .replace(/&(?:nbsp|amp|lt|gt|quot|#39);/g, (m) => HTML_ENTITIES[m] ?? m)
+    .trim()
+}
+
+/** 从 Markdown 内容中提取标题：取首个有内容的行，去掉语法只留文字 */
+export function extractTitle(content: string): string {
+  for (const line of content.split('\n', TITLE_SCAN_LINES)) {
+    const text = stripMarkdown(line)
+    if (text) return text.substring(0, TITLE_MAX_LENGTH)
+  }
+  return 'Untitled'
+}
+
 export const useNoteStore = defineStore('note', () => {
   // File system
   const fs = useFileSystem()
@@ -698,16 +732,6 @@ export const useNoteStore = defineStore('note', () => {
    */
   async function initialize(): Promise<void> {
     await loadNotes()
-  }
-
-  // Helper function to extract title from content
-  function extractTitle(content: string): string {
-    // 只取第一行，避免对大内容做整串 trim + split
-    const firstLine = content.trimStart().split('\n', 1)[0]?.trim() || ''
-    if (firstLine.startsWith('#')) {
-      return firstLine.replace(/^#+\s*/, '').substring(0, 50)
-    }
-    return firstLine.substring(0, 50) || 'Untitled'
   }
 
   return {

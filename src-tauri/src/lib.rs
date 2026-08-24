@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use std::sync::OnceLock;
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
 use window_vibrancy::{apply_vibrancy, NSVisualEffectMaterial, NSVisualEffectState};
 use serde::Serialize;
@@ -134,6 +134,7 @@ const NS_WINDOW_COLLECTION_BEHAVIOR_FULL_SCREEN_AUXILIARY: usize = 1 << 8;
 struct GlobalShortcutState {
     current_shortcut: Mutex<Option<Shortcut>>,
     center_shortcut: Mutex<Option<Shortcut>>,
+    pin_shortcut: Mutex<Option<Shortcut>>,
 }
 
 /// 用户设置的窗口透明度（失焦时需要补偿）
@@ -149,14 +150,8 @@ struct WindowPositionState {
 }
 
 
-/// 注册/更新全局快捷键
-#[tauri::command]
-async fn register_global_shortcut(
-    app: AppHandle,
-    shortcut_state: State<'_, GlobalShortcutState>,
-    shortcut_str: String,
-) -> Result<(), String> {
-    // 解析快捷键字符串 (格式: "Option+Cmd+A" 或 "Alt+Cmd+A")
+/// 解析快捷键字符串 (格式: "Option+Cmd+A" 或 "Alt+Cmd+A")，失败返回错误
+fn parse_shortcut_str(shortcut_str: &str) -> Result<Shortcut, String> {
     let parts: Vec<&str> = shortcut_str.split('+').collect();
 
     let mut modifiers = Modifiers::empty();
@@ -227,7 +222,17 @@ async fn register_global_shortcut(
     }
 
     let key_code = key_code.ok_or("Invalid key code")?;
-    let shortcut = Shortcut::new(Some(modifiers), key_code);
+    Ok(Shortcut::new(Some(modifiers), key_code))
+}
+
+/// 注册/更新全局快捷键
+#[tauri::command]
+async fn register_global_shortcut(
+    app: AppHandle,
+    shortcut_state: State<'_, GlobalShortcutState>,
+    shortcut_str: String,
+) -> Result<(), String> {
+    let shortcut = parse_shortcut_str(&shortcut_str)?;
 
     // 取消之前的快捷键
     {
@@ -295,71 +300,7 @@ async fn register_center_shortcut(
         return Ok(());
     }
 
-    let parts: Vec<&str> = shortcut_str.split('+').collect();
-    let mut modifiers = Modifiers::empty();
-    let mut key_code: Option<Code> = None;
-
-    for part in &parts {
-        match *part {
-            "Ctrl" | "Control" => modifiers |= Modifiers::CONTROL,
-            "Option" | "Alt" => modifiers |= Modifiers::ALT,
-            "Shift" => modifiers |= Modifiers::SHIFT,
-            "Cmd" | "Meta" | "CommandOrControl" => modifiers |= Modifiers::META,
-            _ => {
-                let p = *part;
-                key_code = match p {
-                    "A" => Some(Code::KeyA),
-                    "B" => Some(Code::KeyB),
-                    "C" => Some(Code::KeyC),
-                    "D" => Some(Code::KeyD),
-                    "E" => Some(Code::KeyE),
-                    "F" => Some(Code::KeyF),
-                    "G" => Some(Code::KeyG),
-                    "H" => Some(Code::KeyH),
-                    "I" => Some(Code::KeyI),
-                    "J" => Some(Code::KeyJ),
-                    "K" => Some(Code::KeyK),
-                    "L" => Some(Code::KeyL),
-                    "M" => Some(Code::KeyM),
-                    "N" => Some(Code::KeyN),
-                    "O" => Some(Code::KeyO),
-                    "P" => Some(Code::KeyP),
-                    "Q" => Some(Code::KeyQ),
-                    "R" => Some(Code::KeyR),
-                    "S" => Some(Code::KeyS),
-                    "T" => Some(Code::KeyT),
-                    "U" => Some(Code::KeyU),
-                    "V" => Some(Code::KeyV),
-                    "W" => Some(Code::KeyW),
-                    "X" => Some(Code::KeyX),
-                    "Y" => Some(Code::KeyY),
-                    "Z" => Some(Code::KeyZ),
-                    "0" => Some(Code::Digit0),
-                    "1" => Some(Code::Digit1),
-                    "2" => Some(Code::Digit2),
-                    "3" => Some(Code::Digit3),
-                    "4" => Some(Code::Digit4),
-                    "5" => Some(Code::Digit5),
-                    "6" => Some(Code::Digit6),
-                    "7" => Some(Code::Digit7),
-                    "8" => Some(Code::Digit8),
-                    "9" => Some(Code::Digit9),
-                    "Space" => Some(Code::Space),
-                    "Enter" | "Return" => Some(Code::Enter),
-                    "Tab" => Some(Code::Tab),
-                    "Escape" | "Esc" => Some(Code::Escape),
-                    "MetaLeft" | "MetaRight" | "Meta" => Some(Code::MetaLeft),
-                    "ControlLeft" | "ControlRight" | "Ctrl" => Some(Code::ControlLeft),
-                    "AltLeft" | "AltRight" | "Alt" | "Option" => Some(Code::AltLeft),
-                    "ShiftLeft" | "ShiftRight" | "Shift" => Some(Code::ShiftLeft),
-                    _ => None,
-                };
-            }
-        }
-    }
-
-    let key_code = key_code.ok_or("Invalid key code")?;
-    let shortcut = Shortcut::new(Some(modifiers), key_code);
+    let shortcut = parse_shortcut_str(&shortcut_str)?;
 
     // 取消之前的居中快捷键
     {
@@ -411,6 +352,64 @@ async fn register_center_shortcut(
     }
 
     println!("Center shortcut registered: {}", shortcut_str);
+    Ok(())
+}
+
+/// 注册全局置顶快捷键（无系统焦点时也可切换窗口置顶）
+#[tauri::command]
+async fn register_pin_shortcut(
+    app: AppHandle,
+    shortcut_state: State<'_, GlobalShortcutState>,
+    shortcut_str: String,
+) -> Result<(), String> {
+    if shortcut_str.is_empty() {
+        // 取消注册
+        let mut current = shortcut_state.pin_shortcut.lock().unwrap();
+        if let Some(old) = current.take() {
+            let _ = app.global_shortcut().unregister(old);
+        }
+        return Ok(());
+    }
+
+    let shortcut = parse_shortcut_str(&shortcut_str)?;
+
+    // 取消之前的置顶快捷键
+    {
+        let mut current = shortcut_state.pin_shortcut.lock().unwrap();
+        if let Some(old) = current.take() {
+            let _ = app.global_shortcut().unregister(old);
+        }
+    }
+
+    // 注册新置顶快捷键
+    let app_handle = app.clone();
+    app.global_shortcut()
+        .on_shortcut(shortcut, move |_app, _shortcut, event| {
+            if event.state == ShortcutState::Pressed {
+                let app_clone = app_handle.clone();
+                let _ = app_handle.run_on_main_thread(move || {
+                    if let Some(window) = app_clone.get_webview_window("main") {
+                        match window.is_always_on_top() {
+                            Ok(current) => {
+                                let new_value = !current;
+                                if window.set_always_on_top(new_value).is_ok() {
+                                    let _ = app_clone.emit("on-always-on-top-changed", new_value);
+                                }
+                            }
+                            Err(e) => println!("Failed to read always on top: {}", e),
+                        }
+                    }
+                });
+            }
+        })
+        .map_err(|e| e.to_string())?;
+
+    {
+        let mut current = shortcut_state.pin_shortcut.lock().unwrap();
+        *current = Some(shortcut);
+    }
+
+    println!("Pin shortcut registered: {}", shortcut_str);
     Ok(())
 }
 
@@ -1329,6 +1328,7 @@ pub fn run() {
         .manage(GlobalShortcutState {
             current_shortcut: Mutex::new(None),
             center_shortcut: Mutex::new(None),
+            pin_shortcut: Mutex::new(None),
         })
         .manage(WindowAlphaState {
             alpha: Mutex::new(1.0),
@@ -1452,6 +1452,7 @@ pub fn run() {
             save_image,
             register_global_shortcut,
             register_center_shortcut,
+            register_pin_shortcut,
             center_window,
             toggle_window,
             exit_app,

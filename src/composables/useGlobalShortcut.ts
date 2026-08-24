@@ -1,5 +1,6 @@
-import { onMounted, watch } from 'vue'
+import { onMounted, onUnmounted, watch } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
+import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { useSettingStore } from '@/stores/settingStore'
 
 /**
@@ -8,6 +9,8 @@ import { useSettingStore } from '@/stores/settingStore'
  */
 export function useGlobalShortcut() {
   const settingStore = useSettingStore()
+
+  let unlistenAlwaysOnTop: UnlistenFn | null = null
 
   // 注册全局快捷键（showMain）
   async function registerGlobalShortcut() {
@@ -30,6 +33,24 @@ export function useGlobalShortcut() {
     }
   }
 
+  // 注册全局置顶快捷键
+  async function registerPinShortcut() {
+    const shortcut = settingStore.settings.shortcuts.pin
+    if (!shortcut) return
+    try {
+      await invoke('register_pin_shortcut', { shortcutStr: shortcut })
+    } catch (e) {
+      console.error('Failed to register pin shortcut:', e)
+    }
+  }
+
+  // 监听 Rust 侧置顶状态变化（全局快捷键触发时），同步回前端设置
+  async function listenAlwaysOnTop() {
+    unlistenAlwaysOnTop = await listen<boolean>('on-always-on-top-changed', (event) => {
+      settingStore.updateSettings('alwaysOnTop', event.payload)
+    })
+  }
+
   // 监听快捷键设置变化
   watch(
     () => settingStore.settings.shortcuts.showMain,
@@ -45,13 +66,27 @@ export function useGlobalShortcut() {
     }
   )
 
+  watch(
+    () => settingStore.settings.shortcuts.pin,
+    () => {
+      registerPinShortcut()
+    }
+  )
+
   onMounted(() => {
     registerGlobalShortcut()
     registerCenterShortcut()
+    registerPinShortcut()
+    listenAlwaysOnTop()
+  })
+
+  onUnmounted(() => {
+    unlistenAlwaysOnTop?.()
   })
 
   return {
     registerGlobalShortcut,
     registerCenterShortcut,
+    registerPinShortcut,
   }
 }
