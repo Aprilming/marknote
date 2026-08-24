@@ -159,6 +159,8 @@ export default {
   'editor.searchNext': '下一个匹配 (Enter)',
   'editor.searchClose': '关闭搜索 (Esc)',
   'editor.noteIndicator': '{index} / {total}',
+  'editor.copy': '复制',
+  'editor.paste': '粘贴',
 
   'sidebar.newNote': 'New Note (Cmd+N)',
   'sidebar.searchPlaceholder': 'Search notes... (Cmd+F)',
@@ -280,6 +282,7 @@ export default {
   'toast.imageSaveFailed': '图片保存失败',
   'toast.assistantAlreadyAdded': '该助手已添加',
   'toast.assistantAdded': '添加成功',
+  'toast.copied': '已复制',
 
   'version.parseError': '无法解析版本信息',
   'version.networkError': '网络错误，请检查网络连接',

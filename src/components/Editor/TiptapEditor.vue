@@ -37,6 +37,7 @@ import { TextSelection, AllSelection } from 'prosemirror-state'
 import { useFileSystem } from '@/composables/useFileSystem'
 import { useI18n } from 'vue-i18n'
 import { SOURCE_TAB_INSERT_TEXT, createRichTabInsertText } from './tabInsert'
+import { readText } from '@tauri-apps/plugin-clipboard-manager'
 
 const lowlight = createLowlight(all)
 
@@ -410,6 +411,7 @@ const contextMenuStyle = ref<{ left: string; top: string }>({ left: '0px', top: 
 const savedSelectionText = ref('') // 保存右键菜单打开时的选中文本
 // 存储右键点击前的 ProseMirror 选区快照（用于在右键处理完成后恢复）
 let rightClickSnapshot: { from: number; to: number } | null = null
+const hasClipboardText = ref(false) // 剪贴板是否有文本（控制「粘贴」项显示）
 
 // AI 相关
 const isAILoading = ref(false)
@@ -508,6 +510,14 @@ function handleContextMenu(e: MouseEvent) {
   }
   contextMenuVisible.value = true
 
+  // 检测剪贴板是否有文本，决定是否显示「粘贴」项
+  hasClipboardText.value = false
+  readText().then((text) => {
+    hasClipboardText.value = text.length > 0
+  }).catch(() => {
+    hasClipboardText.value = false
+  })
+
   // 在下一个 macrotask 恢复选区：macOS 原生右键处理会在事件分发前后修改 DOM 选区
   // setTimeout(0) 确保在所有同步事件 + 微任务（含 MutationObserver）完成后恢复
   if (rightClickSnapshot) {
@@ -529,6 +539,37 @@ function hideContextMenu() {
   contextMenuVisible.value = false
   savedSelectionText.value = ''
   rightClickSnapshot = null
+}
+
+// 复制选中内容（Markdown 源码，与 Cmd+C 一致）
+function copySelection() {
+  const ed = editor.value
+  if (!ed) return
+  const { from, to } = ed.state.selection
+  if (from === to) return
+  const slice = ed.state.doc.slice(from, to)
+  const text = serializeSelectionToMarkdown(slice)
+  navigator.clipboard.writeText(text).then(() => {
+    showToast(t('toast.copied'))
+  }).catch((err) => {
+    console.error('复制失败:', err)
+  })
+  hideContextMenu()
+}
+
+// 粘贴剪贴板文本到光标/选区
+async function pasteClipboard() {
+  const ed = editor.value
+  if (!ed) return
+  try {
+    const text = await readText()
+    if (text) {
+      ed.chain().focus().insertContent(text).run()
+    }
+  } catch (err) {
+    console.error('粘贴失败:', err)
+  }
+  hideContextMenu()
 }
 
 // 点击编辑器容器时确保光标正确放置
@@ -1156,23 +1197,7 @@ const editor = useEditor({
       return false
     },
     // 复制时粘贴 markdown 源码（含列表、段落、代码块等结构）
-    clipboardTextSerializer: (slice) => {
-      const ed = editor.value
-      if (ed) {
-        const { from, to } = ed.state.selection
-        // 选区完全位于同一个代码块内时，只复制纯代码文本，不携带 ``` 标记
-        const $from = ed.state.doc.resolve(from)
-        const $to = ed.state.doc.resolve(to)
-        if ($from.parent.type.name === 'codeBlock' && $from.parent === $to.parent) {
-          return slice.content.textBetween(0, slice.content.size, '\n', '\n')
-        }
-        if (from === 0 && to === ed.state.doc.content.size) {
-          return getNormalizedMarkdown() || ''
-        }
-        return normalizeMarkdown(ed.storage.markdown.serializer.serialize(slice.content))
-      }
-      return normalizeMarkdown(slice.content.textBetween(0, slice.content.size, '\n\n', '\n'))
-    },
+    clipboardTextSerializer: (slice) => serializeSelectionToMarkdown(slice),
     handlePaste(view, event) {
       // 处理粘贴事件，特别是图片粘贴
       const clipboardData = event.clipboardData
@@ -1356,6 +1381,25 @@ const editor = useEditor({
 // 获取规格化的 Markdown：将 <url> 自动链接转为 [url](url) 显式链接
 const getNormalizedMarkdown = (): string => {
   return getEditorMarkdown()
+}
+
+// 将选区序列化为 Markdown（右键「复制」与原生复制共用）
+const serializeSelectionToMarkdown = (slice: any): string => {
+  const ed = editor.value
+  if (!ed) {
+    return normalizeMarkdown(slice.content.textBetween(0, slice.content.size, '\n\n', '\n'))
+  }
+  const { from, to } = ed.state.selection
+  const $from = ed.state.doc.resolve(from)
+  const $to = ed.state.doc.resolve(to)
+  // 选区完全位于同一个代码块内时，只复制纯代码文本，不携带 ``` 标记
+  if ($from.parent.type.name === 'codeBlock' && $from.parent === $to.parent) {
+    return slice.content.textBetween(0, slice.content.size, '\n', '\n')
+  }
+  if (from === 0 && to === ed.state.doc.content.size) {
+    return getNormalizedMarkdown() || ''
+  }
+  return normalizeMarkdown(ed.storage.markdown.serializer.serialize(slice.content))
 }
 
 watch(() => props.initialContent, (newContent) => {
@@ -1681,6 +1725,21 @@ defineExpose({
         :style="contextMenuStyle"
         @click.stop
       >
+        <div
+          class="context-menu-item"
+          :class="{ 'context-menu-item--disabled': !savedSelectionText }"
+          @click="copySelection"
+        >
+          <span>{{ $t('editor.copy') }}</span>
+        </div>
+        <div
+          v-if="hasClipboardText"
+          class="context-menu-item"
+          @click="pasteClipboard"
+        >
+          <span>{{ $t('editor.paste') }}</span>
+        </div>
+        <div class="context-menu-divider"></div>
         <template v-if="hasAIConfig && userAssistants.length > 0">
           <div
             v-for="assistant in userAssistants"
@@ -1938,6 +1997,12 @@ defineExpose({
   font-size: 14px;
   color: var(--color-primary);
   opacity: 0.7;
+}
+
+.context-menu-divider {
+  height: 1px;
+  margin: 6px 12px;
+  background: var(--color-popup-border, rgba(255, 255, 255, 0.1));
 }
 
 /* BubbleMenu 新增元素 */

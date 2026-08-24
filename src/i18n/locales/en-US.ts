@@ -159,6 +159,8 @@ export default {
   'editor.searchNext': 'Next match (Enter)',
   'editor.searchClose': 'Close search (Esc)',
   'editor.noteIndicator': '{index} / {total}',
+  'editor.copy': 'Copy',
+  'editor.paste': 'Paste',
 
   'sidebar.newNote': 'New Note (Cmd+N)',
   'sidebar.searchPlaceholder': 'Search notes... (Cmd+F)',
@@ -279,6 +281,7 @@ export default {
   'toast.imageSaveFailed': 'Failed to save image',
   'toast.assistantAlreadyAdded': 'This assistant already exists',
   'toast.assistantAdded': 'Saved successfully',
+  'toast.copied': 'Copied',
 
   'version.parseError': 'Unable to parse version info',
   'version.networkError': 'Network error, please check your connection',
